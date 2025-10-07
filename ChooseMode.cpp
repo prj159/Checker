@@ -33,3 +33,29 @@ int ChooseMode()
     closegraph();
     return choice;
 }
+
+
+int chooseAI()
+{
+    int w = 400, h = 200;
+    initgraph(w, h);
+    setbkcolor(RGB(40, 40, 40)); cleardevice();
+    settextstyle(24, 0, _T("微软雅黑")); settextcolor(WHITE);
+    outtextxy(120, 30, _T("游戏模式"));
+    const wchar_t* txt[2] = { _T("人人"), _T("人机") };
+    for (int i = 0;i < 2;++i) { outtextxy(160, 90 + i * 50, txt[i]); rectangle(150, 85 + i * 50, 250, 125 + i * 50); }
+    int r = -1;
+    while (r == -1) {
+        if (MouseHit()) {
+            MOUSEMSG m = GetMouseMsg();
+            if (m.uMsg == WM_LBUTTONDOWN)
+                for (int i = 0;i < 2;++i)
+                    if (m.x >= 150 && m.x <= 250 && m.y >= 85 + i * 50 && m.y <= 125 + i * 50)
+                    {
+                        r = i; break;
+                    }
+        }
+    }
+    closegraph();
+    return r;   // 0 人人  1 人机
+}

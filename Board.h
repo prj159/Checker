@@ -32,6 +32,8 @@ private:
     int originX, originY;
     int currentPlayer;                  // 0..playerCount-1
     int playerCount;
+    bool aiMode;        // 新增
+    bool humanFirst;    // 新增
     bool hasSelection;
     HexCoord selectedHex;
     std::map<HexCoord, Player> boardState;
@@ -54,10 +56,16 @@ private:
     std::wstring getPlayerName(Player p);
 
 public:
-    Board(int w, int h, int _playerCount);
+    Board(int w, int h, int _playerCount, int _aiMode, bool _humanFirst);
     void run();
     void handleMouseClick(const MOUSEMSG& msg);
     void switchPlayer();
     void undoMove();
     void display();
+    const std::map<HexCoord, Player>& getBoardState() const;
+    void findLegalMovesFor(const HexCoord& from, std::vector<HexCoord>& out) const;
+    // Board.h
+    void findJumps(const HexCoord& from,
+        std::vector<HexCoord>& moves,
+        mutable std::map<HexCoord, bool>& visited) const;
 };

@@ -1,4 +1,5 @@
 #include "Board.h"
+#include "AI.h"          // ← 新增：AI 引擎
 #include <cmath>
 #include <vector>
 #include <map>
@@ -7,172 +8,116 @@
 #include <conio.h>
 #include <string>
 
-Board::Board(int w, int h, int _playerCount)
-    : windowWidth(w), windowHeight(h), playerCount(_playerCount),
+//-------------------- 构造函数 --------------------
+Board::Board(int w, int h, int _playerCount, int _aiMode, bool _humanFirst)
+    : windowWidth(w), windowHeight(h),
+    playerCount(_playerCount),
+    aiMode(_aiMode), humanFirst(_humanFirst),
     currentPlayer(0), hasSelection(false), selectedHex(0, 0)
 {
-    originX = w / 2; originY = h / 2;
+    originX = w / 2;
+    originY = h / 2;
 
+    // 颜色 / 名字表
     const COLORREF allColors[6] = { RED, GREEN, BLUE, YELLOW, MAGENTA, CYAN };
     const wchar_t* allNames[6] = { L"Red",L"Green",L"Blue",L"Yellow",L"Magenta",L"Cyan" };
-    for (int i = 0;i < playerCount;++i) {
+    for (int i = 0; i < playerCount; ++i) {
         playerColors.push_back(allColors[i]);
         playerNames.push_back(allNames[i]);
     }
     initializeBoard();
 }
 
-void Board::initializeBoard()
-{
+//==================== 以下全部沿用你原来逻辑 ====================
+void Board::initializeBoard() {
     boardState.clear();
-    /* 1. 把 121 个 hex 全置空 -------------------- */
-    for (int q = -4;q <= 4;++q)for (int r = -4;r <= 4;++r) {
-        int s = -q - r; if (std::abs(s) <= 4) boardState[HexCoord(q, r)] = Player::None;
-    }
-    /* 上下左右四个三角补齐 */
-    for (int q = 5;q <= 8;++q)for (int r = -q + 4;r >= -4;--r) boardState[HexCoord(r, q)] = Player::None;
-    for (int q = -5;q >= -8;--q)for (int r = -q - 4;r <= 4;++r) boardState[HexCoord(r, q)] = Player::None;
-    for (int q = 1;q <= 4;++q)for (int r = 5 - q;r <= 4;++r)   boardState[HexCoord(r, q)] = Player::None;
-    for (int q = -1;q >= -4;--q)for (int r = -5 - q;r >= -4;--r)boardState[HexCoord(r, q)] = Player::None;
-    for (int q = 1;q <= 4;++q)for (int r = -4 - q;r <= -5;++r) boardState[HexCoord(r, q)] = Player::None;
-    for (int q = -1;q >= -4;--q)for (int r = 4 - q;r >= 5;--r) boardState[HexCoord(r, q)] = Player::None;
+    /* 1. 121 个 hex 置空 */
+    for (int q = -4; q <= 4; ++q)
+        for (int r = -4; r <= 4; ++r) {
+            int s = -q - r;
+            if (std::abs(s) <= 4) boardState[HexCoord(q, r)] = Player::None;
+        }
+    /* 四个三角补齐 */
+    for (int q = 5; q <= 8; ++q)
+        for (int r = -q + 4; r >= -4; --r) boardState[HexCoord(r, q)] = Player::None;
+    for (int q = -5; q >= -8; --q)
+        for (int r = -q - 4; r <= 4; ++r) boardState[HexCoord(r, q)] = Player::None;
+    for (int q = 1; q <= 4; ++q)
+        for (int r = 5 - q; r <= 4; ++r) boardState[HexCoord(r, q)] = Player::None;
+    for (int q = -1; q >= -4; --q)
+        for (int r = -5 - q; r >= -4; --r) boardState[HexCoord(r, q)] = Player::None;
+    for (int q = 1; q <= 4; ++q)
+        for (int r = -4 - q; r <= -5; ++r) boardState[HexCoord(r, q)] = Player::None;
+    for (int q = -1; q >= -4; --q)
+        for (int r = 4 - q; r >= 5; --r) boardState[HexCoord(r, q)] = Player::None;
 
     /* 2. 按人数放棋子 */
     const std::vector<HexCoord> bases[3] = {
         /* 2 人 */
-        {HexCoord(-4, 8),
-         HexCoord(-3, 7), HexCoord(-4, 7),
-         HexCoord(-2, 6), HexCoord(-3, 6), HexCoord(-4, 6),
-         HexCoord(-1, 5), HexCoord(-2, 5), HexCoord(-3, 5), HexCoord(-4, 5),
-         HexCoord(4, -8),
-        HexCoord(3, -7), HexCoord(4, -7),
-        HexCoord(2, -6), HexCoord(3, -6), HexCoord(4, -6),
-        HexCoord(1, -5), HexCoord(2, -5), HexCoord(3, -5), HexCoord(4, -5)},
-         /* 4 人 左上+右下 */
-         {HexCoord(-4, 8),
-         HexCoord(-3, 7), HexCoord(-4, 7),
-         HexCoord(-2, 6), HexCoord(-3, 6), HexCoord(-4, 6),
-         HexCoord(-1, 5), HexCoord(-2, 5), HexCoord(-3, 5), HexCoord(-4, 5),
-
-         HexCoord(4, -8),
-        HexCoord(3, -7), HexCoord(4, -7),
-        HexCoord(2, -6), HexCoord(3, -6), HexCoord(4, -6),
-        HexCoord(1, -5), HexCoord(2, -5), HexCoord(3, -5), HexCoord(4, -5),
-
-        HexCoord(4, 1),
-         HexCoord(3,2), HexCoord(4,2),
-         HexCoord(2,3), HexCoord(3,3), HexCoord(4,3),
-         HexCoord(1,4), HexCoord(2,4), HexCoord(3,4), HexCoord(4,4),
-
-         HexCoord(-4,-1),
-        HexCoord(-3,-2), HexCoord(-4,-2),
-        HexCoord(-2,-3), HexCoord(-3,-3), HexCoord(-4,-3),
-        HexCoord(-1,-4), HexCoord(-2,-4), HexCoord(-3,-4), HexCoord(-4,-4)},
-          /* 6 人 六芒星 */
-          {HexCoord(-4, 8),
-         HexCoord(-3, 7), HexCoord(-4, 7),
-         HexCoord(-2, 6), HexCoord(-3, 6), HexCoord(-4, 6),
-         HexCoord(-1, 5), HexCoord(-2, 5), HexCoord(-3, 5), HexCoord(-4, 5),
-
-         HexCoord(4, -8),
-        HexCoord(3, -7), HexCoord(4, -7),
-        HexCoord(2, -6), HexCoord(3, -6), HexCoord(4, -6),
-        HexCoord(1, -5), HexCoord(2, -5), HexCoord(3, -5), HexCoord(4, -5),
-
-        HexCoord(4, 1),
-         HexCoord(3,2), HexCoord(4,2),
-         HexCoord(2,3), HexCoord(3,3), HexCoord(4,3),
-         HexCoord(1,4), HexCoord(2,4), HexCoord(3,4), HexCoord(4,4),
-
-         HexCoord(-4,-1),
-        HexCoord(-3,-2), HexCoord(-4,-2),
-        HexCoord(-2,-3), HexCoord(-3,-3), HexCoord(-4,-3),
-        HexCoord(-1,-4), HexCoord(-2,-4), HexCoord(-3,-4), HexCoord(-4,-4),
-    
-    HexCoord(-5,1),
-        HexCoord(-6,2), HexCoord(-5,2),
-        HexCoord(-7,3), HexCoord(-6,3), HexCoord(-5,3),
-        HexCoord(-8,4), HexCoord(-7,4), HexCoord(-6,4), HexCoord(-5,4),
-    
-    HexCoord(5,-1),
-        HexCoord(6,-2), HexCoord(5,-2),
-        HexCoord(7,-3), HexCoord(6,-3), HexCoord(5,-3),
-        HexCoord(8,-4), HexCoord(7,-4), HexCoord(6,-4), HexCoord(5,-4)}
+        {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+         HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
+         HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+         HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+         /* 4 人 */
+         {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+          HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
+          HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+          HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
+          HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+          HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),
+          HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+          HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
+          /* 6 人 */
+          {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+           HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
+           HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+           HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
+           HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+           HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),
+           HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+           HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),
+           HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
+           HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4),
+           HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
+           HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)}
     };
     int idx = (playerCount == 2 ? 0 : playerCount == 4 ? 1 : 2);
-    for (size_t i = 0;i < bases[idx].size();++i)
+    for (size_t i = 0; i < bases[idx].size(); ++i)
         boardState[bases[idx][i]] = static_cast<Player>(i / (bases[idx].size() / playerCount));
 }
 
-void Board::checkVictory()
-{
+void Board::checkVictory() {
     const std::vector<HexCoord> targets[3] = {
-        /* 2 人：红要占绿角，绿要占红角 */
-        { HexCoord(4, -8),
-        HexCoord(3, -7), HexCoord(4, -7),
-        HexCoord(2, -6), HexCoord(3, -6), HexCoord(4, -6),
-        HexCoord(1, -5), HexCoord(2, -5), HexCoord(3, -5), HexCoord(4, -5),
-
-         HexCoord(-4, 8),
-         HexCoord(-3, 7), HexCoord(-4, 7),
-         HexCoord(-2, 6), HexCoord(-3, 6), HexCoord(-4, 6),
-         HexCoord(-1, 5), HexCoord(-2, 5), HexCoord(-3, 5), HexCoord(-4, 5)},
-
+        /* 2 人 */
+        {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+         HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
+         HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+         HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
          /* 4 人 */
-         {HexCoord(4, -8),
-        HexCoord(3, -7), HexCoord(4, -7),
-        HexCoord(2, -6), HexCoord(3, -6), HexCoord(4, -6),
-        HexCoord(1, -5), HexCoord(2, -5), HexCoord(3, -5), HexCoord(4, -5),
-
-         HexCoord(-4, 8),
-         HexCoord(-3, 7), HexCoord(-4, 7),
-         HexCoord(-2, 6), HexCoord(-3, 6), HexCoord(-4, 6),
-         HexCoord(-1, 5), HexCoord(-2, 5), HexCoord(-3, 5), HexCoord(-4, 5),
-
-          HexCoord(-4,-1),
-        HexCoord(-3,-2), HexCoord(-4,-2),
-        HexCoord(-2,-3), HexCoord(-3,-3), HexCoord(-4,-3),
-        HexCoord(-1,-4), HexCoord(-2,-4), HexCoord(-3,-4), HexCoord(-4,-4),
-
-        HexCoord(4, 1),
-         HexCoord(3,2), HexCoord(4,2),
-         HexCoord(2,3), HexCoord(3,3), HexCoord(4,3),
-         HexCoord(1,4), HexCoord(2,4), HexCoord(3,4), HexCoord(4,4)},
-
+         {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+          HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
+          HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+          HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
+          HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+          HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),
+          HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+          HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)},
           /* 6 人 */
-          {HexCoord(4, -8),
-        HexCoord(3, -7), HexCoord(4, -7),
-        HexCoord(2, -6), HexCoord(3, -6), HexCoord(4, -6),
-        HexCoord(1, -5), HexCoord(2, -5), HexCoord(3, -5), HexCoord(4, -5),
-
-         HexCoord(-4, 8),
-         HexCoord(-3, 7), HexCoord(-4, 7),
-         HexCoord(-2, 6), HexCoord(-3, 6), HexCoord(-4, 6),
-         HexCoord(-1, 5), HexCoord(-2, 5), HexCoord(-3, 5), HexCoord(-4, 5),
-
-         HexCoord(-4,-1),
-         HexCoord(-3,-2), HexCoord(-4,-2),
-         HexCoord(-2,-3), HexCoord(-3,-3), HexCoord(-4,-3),
-         HexCoord(-1,-4), HexCoord(-2,-4), HexCoord(-3,-4), HexCoord(-4,-4),
-
-         HexCoord(4, 1),
-         HexCoord(3,2), HexCoord(4,2),
-         HexCoord(2,3), HexCoord(3,3), HexCoord(4,3),
-         HexCoord(1,4), HexCoord(2,4), HexCoord(3,4), HexCoord(4,4),
-
-        HexCoord(5,-1),
-        HexCoord(6,-2), HexCoord(5,-2),
-        HexCoord(7,-3), HexCoord(6,-3), HexCoord(5,-3),
-        HexCoord(8,-4), HexCoord(7,-4), HexCoord(6,-4), HexCoord(5,-4),
-
-        HexCoord(-5,1),
-        HexCoord(-6,2), HexCoord(-5,2),
-        HexCoord(-7,3), HexCoord(-6,3), HexCoord(-5,3),
-        HexCoord(-8,4), HexCoord(-7,4), HexCoord(-6,4), HexCoord(-5,4)}
+          {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+           HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
+           HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+           HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
+           HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+           HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),
+           HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+           HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),
+           HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
+           HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4),
+           HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
+           HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)}
     };
-
     int tidx = (playerCount == 2 ? 0 : playerCount == 4 ? 1 : 2);
-    for (int pl = 0;pl < playerCount;++pl) {
+    for (int pl = 0; pl < playerCount; ++pl) {
         bool ok = true;
         Player enemy = static_cast<Player>((pl + playerCount / 2) % playerCount);
         for (const auto& h : targets[tidx])
@@ -186,15 +131,13 @@ void Board::checkVictory()
     }
 }
 
-POINT Board::hexToPixel(const HexCoord& hex) const
-{
+POINT Board::hexToPixel(const HexCoord& hex) const {
     double x = originX + HEX_RADIUS * (sqrt(3.0) * (hex.q + hex.r / 2.0));
     double y = originY + HEX_RADIUS * (3.0 / 2.0 * hex.r);
     return { static_cast<long>(x), static_cast<long>(y) };
 }
 
-HexCoord Board::pixelToHex(const POINT& pt) const
-{
+HexCoord Board::pixelToHex(const POINT& pt) const {
     double x = (pt.x - originX) / double(HEX_RADIUS);
     double y = (pt.y - originY) / double(HEX_RADIUS);
     double q = (sqrt(3.0) / 3.0 * x - 1.0 / 3.0 * y);
@@ -203,12 +146,11 @@ HexCoord Board::pixelToHex(const POINT& pt) const
     int rq = int(round(q)), rr = int(round(r)), rs = int(round(s));
     double dq = fabs(rq - q), dr = fabs(rr - r), ds = fabs(rs - s);
     if (dq > dr && dq > ds) rq = -rr - rs;
-    else if (dr > ds)   rr = -rq - rs;
+    else if (dr > ds)       rr = -rq - rs;
     return HexCoord(rq, rr);
 }
 
-void Board::findValidMoves(const HexCoord& from)
-{
+void Board::findValidMoves(const HexCoord& from) {
     validMoves.clear();
     int dirs[6][2] = { {1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1} };
     for (auto& d : dirs) {
@@ -221,24 +163,21 @@ void Board::findValidMoves(const HexCoord& from)
 }
 
 void Board::findJumps(const HexCoord& from, std::vector<HexCoord>& moves,
-    std::map<HexCoord, bool>& visited)
-{
+    std::map<HexCoord, bool>& visited) {
     visited[from] = true;
     int dirs[6][2] = { {1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1} };
     for (auto& d : dirs) {
         HexCoord m(from.q + d[0], from.r + d[1]);
         HexCoord t(from.q + 2 * d[0], from.r + 2 * d[1]);
         if (boardState.count(m) && boardState[m] != Player::None &&
-            boardState.count(t) && boardState[t] == Player::None && !visited[t])
-        {
+            boardState.count(t) && boardState[t] == Player::None && !visited[t]) {
             moves.push_back(t);
             findJumps(t, moves, visited);
         }
     }
 }
 
-void Board::display()
-{
+void Board::display() {
     cleardevice();
     for (const auto& kv : boardState) {
         if (kv.second == Player::None) {
@@ -265,8 +204,7 @@ void Board::display()
     drawUI();
 }
 
-void Board::drawUI()
-{
+void Board::drawUI() {
     settextcolor(getPlayerColor(static_cast<Player>(currentPlayer)));
     settextstyle(24, 0, _T("微软雅黑")); setbkmode(TRANSPARENT);
     std::wstring txt = L"Current: " + playerNames[currentPlayer];
@@ -275,13 +213,11 @@ void Board::drawUI()
     outtextxy(10, windowHeight - 30, _T("Right-click cancel,  'U' undo"));
 }
 
-void Board::switchPlayer()
-{
+void Board::switchPlayer() {
     currentPlayer = (currentPlayer + 1) % playerCount;
 }
 
-void Board::undoMove()
-{
+void Board::undoMove() {
     if (moveHistory.empty()) return;
     MoveRecord last = moveHistory.back();
     moveHistory.pop_back();
@@ -291,21 +227,18 @@ void Board::undoMove()
     hasSelection = false; validMoves.clear();
 }
 
-COLORREF Board::getPlayerColor(Player p)
-{
+COLORREF Board::getPlayerColor(Player p) {
     if (p == Player::None) return DARKGRAY;
     return playerColors[static_cast<int>(p)];
 }
-std::wstring Board::getPlayerName(Player p)
-{
+std::wstring Board::getPlayerName(Player p) {
     if (p == Player::None) return L"None";
     return playerNames[static_cast<int>(p)];
 }
 
-void Board::drawHexagonOutline(const HexCoord& hex)
-{
+void Board::drawHexagonOutline(const HexCoord& hex) {
     POINT pts[6]; POINT c = hexToPixel(hex);
-    for (int i = 0;i < 6;++i) {
+    for (int i = 0; i < 6; ++i) {
         pts[i].x = long(c.x + HEX_RADIUS * cos(PI / 3 * i));
         pts[i].y = long(c.y + HEX_RADIUS * sin(PI / 3 * i));
     }
@@ -313,8 +246,7 @@ void Board::drawHexagonOutline(const HexCoord& hex)
     polygon(pts, 6);
 }
 
-void Board::handleMouseClick(const MOUSEMSG& msg)
-{
+void Board::handleMouseClick(const MOUSEMSG& msg) {
     POINT p = { msg.x,msg.y };
     HexCoord clicked = pixelToHex(p);
     if (boardState.find(clicked) == boardState.end()) {
@@ -345,11 +277,56 @@ void Board::handleMouseClick(const MOUSEMSG& msg)
     }
 }
 
-void Board::run()
-{
+//====================== 给 AI 用的只读接口 ======================
+const std::map<HexCoord, Player>& Board::getBoardState() const { return boardState; }
+
+void Board::findLegalMovesFor(const HexCoord& from, std::vector<HexCoord>& out) const {
+    out.clear();
+    int dirs[6][2] = { {1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1} };
+    for (auto& d : dirs) {
+        HexCoord n(from.q + d[0], from.r + d[1]);
+        if (boardState.count(n) && boardState.at(n) == Player::None)
+            out.push_back(n);
+    }
+    std::map<HexCoord, bool> vis;
+    vis[from] = true;
+    // 把 findJumps 拷进来即可
+    for (auto& d : dirs) {
+        HexCoord m(from.q + d[0], from.r + d[1]);
+        HexCoord t(from.q + 2 * d[0], from.r + 2 * d[1]);
+        if (boardState.count(m) && boardState.at(m) != Player::None &&
+            boardState.count(t) && boardState.at(t) == Player::None && !vis[t]) {
+            out.push_back(t);
+            // 递归跳
+            std::vector<HexCoord> more;
+            vis[t] = true;
+            findJumps(t, more, vis);
+            out.insert(out.end(), more.begin(), more.end());
+        }
+    }
+}
+
+//====================== 主循环：自动插入 AI 回合 ======================
+void Board::run() {
     BeginBatchDraw();
     while (true) {
         display(); FlushBatchDraw();
+
+        // ====== AI 回合 ======
+        if (aiMode && static_cast<Player>(currentPlayer) != Player::None &&
+            (humanFirst == false && currentPlayer == 0 ||
+                humanFirst == true && currentPlayer == 1)) {
+            MoveRecord mv = AI::getMove(*this, static_cast<Player>(currentPlayer));
+            if (!(mv.from == mv.to)) {   // 保险
+                moveHistory.push_back(mv);
+                boardState[mv.to] = mv.fromPlayer;
+                boardState[mv.from] = Player::None;
+                switchPlayer(); checkVictory();
+            }
+            continue;
+        }
+
+        // ====== 人类回合 ======
         if (MouseHit()) {
             MOUSEMSG msg = GetMouseMsg();
             if (msg.uMsg == WM_LBUTTONDOWN) handleMouseClick(msg);
@@ -360,4 +337,27 @@ void Board::run()
         }
     }
     EndBatchDraw();
+}
+
+/*  Board.cpp 末尾补充 / 替换  */
+void Board::findJumps(const HexCoord& from,
+    std::vector<HexCoord>& moves,
+    mutable std::map<HexCoord, bool>& visited) const   // 注意 const
+{
+    visited[from] = true;
+    const int dirs[6][2] = { {1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1} };
+
+    for (auto& d : dirs)
+    {
+        HexCoord mid(from.q + d[0], from.r + d[1]);
+        HexCoord dst(from.q + 2 * d[0], from.r + 2 * d[1]);
+
+        if (boardState.count(mid) && boardState.at(mid) != Player::None &&
+            boardState.count(dst) && boardState.at(dst) == Player::None &&
+            !visited[dst])
+        {
+            moves.push_back(dst);
+            findJumps(dst, moves, visited);   // 递归
+        }
+    }
 }
