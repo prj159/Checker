@@ -1,0 +1,32 @@
+# Visual Studio build artifacts
+.vs/
+x64/
+Debug/
+Release/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.db
+*.db-shm
+*.db-wal
+*.ipch
+*.iobj
+*.ipdb
+*.idb
+*.pdb
+*.ilk
+*.exe
+*.obj
+*.tlog
+*.log
+*.recipe
+*.enc
+*.applocal.log
+*.lastbuildstate
+
+# Other common build artifacts
+bin/
+obj/
+Temp/
+tmp/
