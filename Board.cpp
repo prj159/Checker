@@ -87,44 +87,83 @@ void Board::initializeBoard() {
 }
 
 void Board::checkVictory() {
-    const std::vector<HexCoord> targets[3] = {
-        /* 2 人 */
-        {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-         HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
-         HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-         HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
-         /* 4 人 */
-         {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-          HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
-          HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-          HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
-          HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
-          HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),
-          HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
-          HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)},
-          /* 6 人 */
-          {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-           HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
-           HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-           HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
-           HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
-           HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),
-           HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
-           HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),
-           HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
-           HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4),
-           HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
-           HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)}
+    // 为每个玩家定义目标区域
+    const std::vector<std::vector<HexCoord>> targetsByPlayer[3] = {
+        /* 2人模式 */
+        {
+            /* 玩家0的目标区域（原玩家1的基地） */
+            {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+             HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+             /* 玩家1的目标区域（原玩家0的基地） */
+             {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+              HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)}
+         },
+        /* 4人模式 */
+        {
+            /* 玩家0的目标区域 */
+            {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+             HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+             /* 玩家1的目标区域 */
+             {HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+              HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
+              /* 玩家2的目标区域 */
+              {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+               HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
+               /* 玩家3的目标区域 */
+               {HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+                HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)}
+           },
+        /* 6人模式 */
+        {
+            /* 玩家0的目标区域 */
+            {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+             HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+             /* 玩家1的目标区域 */
+             {HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+              HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
+              /* 玩家2的目标区域 */
+              {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+               HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
+               /* 玩家3的目标区域 */
+               {HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+                HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)},
+                /* 玩家4的目标区域 */
+                {HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
+                 HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4)},
+                 /* 玩家5的目标区域 */
+                 {HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
+                  HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)}
+             }
     };
+
     int tidx = (playerCount == 2 ? 0 : playerCount == 4 ? 1 : 2);
+
+    // 检查每个玩家是否获胜
     for (int pl = 0; pl < playerCount; ++pl) {
-        bool ok = true;
-        Player enemy = static_cast<Player>((pl + playerCount / 2) % playerCount);
-        for (const auto& h : targets[tidx])
-            if (boardState[h] != enemy) { ok = false; break; }
-        if (ok) {
+        bool allInTarget = true;
+
+        // 检查该玩家的所有棋子是否都在目标区域内
+        for (const auto& kv : boardState) {
+            if (kv.second == static_cast<Player>(pl)) {
+                // 检查这个棋子是否在目标区域内
+                bool inTarget = false;
+                for (const auto& targetHex : targetsByPlayer[tidx][pl]) {
+                    if (targetHex == kv.first) {
+                        inTarget = true;
+                        break;
+                    }
+                }
+                if (!inTarget) {
+                    allInTarget = false;
+                    break;
+                }
+            }
+        }
+
+        if (allInTarget) {
             std::wstring msg = playerNames[pl] + L" Player Wins!";
-            display(); FlushBatchDraw();
+            display();
+            FlushBatchDraw();
             MessageBox(GetHWnd(), msg.c_str(), L"Game Over", MB_OK);
             exit(0);
         }
