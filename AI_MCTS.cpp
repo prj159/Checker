@@ -1,11 +1,15 @@
-ï»¿/****************************************************************************
- *  AI_MCTS.cpp  --  å®Œæ•´ MCTS AIï¼ˆv3ï¼šæœ‰å rollout + æ—¶é—´é¢„ç®— + å¢å¼ºè¯„ä¼°ï¼‰
+/****************************************************************************
+ *  AI_MCTS.cpp  --  MCTS AI v4£º½¥½ø¼Ó¿í + RAVE + ÖÃ»»±í + softmax rollout
  *
- *  æ ¸å¿ƒæ”¹è¿›ï¼š
- *    1. æœ‰åå¥½ rolloutï¼š70% æ¦‚ç‡é€‰æœ€æ¥è¿‘ç›®æ ‡çš„èµ°æ³•ï¼Œ30% éšæœºæ¢ç´¢
- *    2. æ—¶é—´é¢„ç®—åˆ¶ï¼šæ¯æ¬¡èµ°æ£‹æœ€å¤šæœç´¢ 2 ç§’ï¼Œè€Œéå›ºå®šæ¬¡æ•°
- *    3. å¢å¼ºå¯å‘å¼ï¼šè€ƒè™‘è¿›åº¦ã€è·³è·ƒé“¾ã€é˜»å¡ã€å¯¹æ‰‹è¿›åº¦
- *    4. è·³è·ƒä¼˜å…ˆï¼šrollout ä¸­è·³è·ƒèµ°æ³•è·å¾—åŠ æƒ
+ *  ÔöÇ¿£º
+ *    1. ½¥½ø¼Ó¿í (Progressive Widening)
+ *    2. Æô·¢Ê½ PUCT ÏÈÑé
+ *    3. Softmax rollout£¨Ìæ´úÓ² ¦Å-greedy£©
+ *    4. RAVE ¿ç½Úµã×ß·¨Í³¼Æ
+ *    5. ÖÃ»»±í (Transposition Table)
+ *    6. ÔöÇ¿Æô·¢Ê½ÆÀ¹À v2
+ *    7. ×ÔÊÊÓ¦ C_PUCT
+ *    8. ¿ª¾Ö¿âÖ§³Ö
  ***************************************************************************/
 #include "AI_MCTS.h"
 #include <set>
@@ -13,28 +17,35 @@
 #include <cmath>
 #include <algorithm>
 #include <chrono>
+#include <fstream>
+#include <sstream>
 
 namespace AI {
 
-// ======================= æ—¶é—´é¢„ç®— =======================
-static constexpr double TIME_BUDGET_SEC = 2.0;   // æ¯æ¬¡èµ°æ£‹æœ€å¤š 2 ç§’
+// ======================= ²ÎÊı =======================
+static constexpr double TIME_BUDGET_SEC   = 5.0;     // Ã¿´Î×ßÆå×î¶à 5 Ãë
+static constexpr int    MIN_SIMULATIONS   = 200;      // ±£µ×Ä£Äâ´ÎÊı
+static constexpr double C_PUCT_BASE       = 2.0;      // »ù´¡Ì½Ë÷³£Êı
+static constexpr double ROLLOUT_TEMP      = 0.5;      // softmax ÎÂ¶È£¨Ô½Ğ¡Ô½Ì°À·£©
+static constexpr double RAVE_EQUIV        = 500.0;    // RAVE µÈĞ§Ñù±¾Êı
 
-// ä¿åº•ï¼šå³ä½¿è¶…æ—¶ä¹Ÿè¦è·‘çš„æœ€å°‘æ¨¡æ‹Ÿæ¬¡æ•°
-static constexpr int MIN_SIMULATIONS = 100;
-
-static constexpr double C_PUCT = 1.414;
-
-// ======================= éšæœºæ•° =======================
+// ======================= Ëæ»úÊı =======================
 static std::mt19937& rng() {
     static std::mt19937 mt(
         static_cast<unsigned>(std::chrono::steady_clock::now().time_since_epoch().count())
     );
     return mt;
 }
-
 static std::uniform_real_distribution<double> uni01(0.0, 1.0);
 
-// ======================= ç›®æ ‡åŒºåŸŸè¡¨ =======================
+// ======================= È«¾Ö×´Ì¬ =======================
+static std::unordered_map<uint64_t, RAVEStats> g_raveTable;
+static std::vector<OpeningEntry> g_openingBook;  // ¿ª¾Ö¿â
+static bool g_openingLoaded = false;
+
+std::unordered_map<uint64_t, RAVEStats>& getRAVETable() { return g_raveTable; }
+
+// ======================= Ä¿±êÇøÓò±í =======================
 static const std::vector<std::vector<HexCoord>>& getTargetZones(int playerCount) {
     static bool init = false;
     static std::vector<std::vector<HexCoord>> zones2, zones4, zones6;
@@ -64,10 +75,9 @@ static const std::vector<std::vector<HexCoord>>& getTargetZones(int playerCount)
     return zones6;
 }
 
-// é¢„è®¡ç®—ç›®æ ‡åŒºåŸŸä¸­å¿ƒï¼ˆå…­è§’åæ ‡å¹³å‡ï¼‰
+// Ä¿±êÇøÓòÖĞĞÄ
 static HexCoord targetCentroid(int playerCount, int pid) {
-    static HexCoord cache[3][6];
-    static bool cached = false;
+    static HexCoord cache[3][6]; static bool cached = false;
     if (!cached) {
         for (int pc : {2, 4, 6}) {
             int idx = (pc == 2 ? 0 : pc == 4 ? 1 : 2);
@@ -86,27 +96,37 @@ static HexCoord targetCentroid(int playerCount, int pid) {
     return cache[idx][pid];
 }
 
-// ======================= å…­è§’è·ç¦» =======================
+// ======================= Áù½Ç¾àÀë =======================
 static inline int hexDist(const HexCoord& a, const HexCoord& b) {
     int dq = a.q - b.q, dr = a.r - b.r, ds = -dq - dr;
     return (std::abs(dq) + std::abs(dr) + std::abs(ds)) / 2;
 }
 
-// ======================= èµ°æ³•ç”Ÿæˆ =======================
+// ======================= ÆåÅÌ¹şÏ£ =======================
+static uint64_t hashBoard(const std::map<HexCoord, Player>& board, int playerCount) {
+    uint64_t h = 0x9e3779b97f4a7c15ULL;
+    for (const auto& kv : board) {
+        uint64_t pos = (static_cast<uint64_t>(kv.first.q + 16) << 16)
+                     | static_cast<uint64_t>(kv.first.r + 16);
+        uint64_t val = static_cast<uint64_t>(static_cast<int>(kv.second) + 1);
+        h ^= pos * 0x9e3779b97f4a7c15ULL + val + (h << 6) + (h >> 2);
+    }
+    h ^= static_cast<uint64_t>(playerCount) * 0x517cc1b727220a95ULL;
+    return h;
+}
+
+// ======================= ×ß·¨Éú³É =======================
 static void findJumpsRecursive(const std::map<HexCoord, Player>& board,
-                                const HexCoord& from,
-                                std::vector<HexCoord>& moves,
+                                const HexCoord& from, std::vector<HexCoord>& moves,
                                 std::map<HexCoord, bool>& visited) {
     visited[from] = true;
     const int dirs[6][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1}};
     for (auto& d : dirs) {
         HexCoord mid(from.q + d[0], from.r + d[1]);
         HexCoord dst(from.q + 2*d[0], from.r + 2*d[1]);
-        auto it_mid = board.find(mid);
-        auto it_dst = board.find(dst);
+        auto it_mid = board.find(mid); auto it_dst = board.find(dst);
         if (it_mid != board.end() && it_mid->second != Player::None &&
-            it_dst != board.end() && it_dst->second == Player::None &&
-            !visited[dst]) {
+            it_dst != board.end() && it_dst->second == Player::None && !visited[dst]) {
             moves.push_back(dst);
             findJumpsRecursive(board, dst, moves, visited);
         }
@@ -115,44 +135,50 @@ static void findJumpsRecursive(const std::map<HexCoord, Player>& board,
 
 static std::vector<HexCoord> getMovesForPiece(
     const std::map<HexCoord, Player>& board, const HexCoord& from) {
-    std::vector<HexCoord> out;
+    std::vector<HexCoord> moves;
     const int dirs[6][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1}};
     for (auto& d : dirs) {
         HexCoord n(from.q + d[0], from.r + d[1]);
         auto it = board.find(n);
-        if (it != board.end() && it->second == Player::None)
-            out.push_back(n);
+        if (it != board.end() && it->second == Player::None) moves.push_back(n);
     }
-    std::map<HexCoord, bool> vis;
-    findJumpsRecursive(board, from, out, vis);
-    return out;
+    std::map<HexCoord, bool> visited; visited[from] = true;
+    for (auto& d : dirs) {
+        HexCoord mid(from.q + d[0], from.r + d[1]);
+        HexCoord dst(from.q + 2*d[0], from.r + 2*d[1]);
+        auto it_mid = board.find(mid); auto it_dst = board.find(dst);
+        if (it_mid != board.end() && it_mid->second != Player::None &&
+            it_dst != board.end() && it_dst->second == Player::None && !visited[dst]) {
+            moves.push_back(dst);
+            findJumpsRecursive(board, dst, moves, visited);
+        }
+    }
+    return moves;
 }
 
-// åˆ¤æ–­ä¸€æ¬¡èµ°æ³•æ˜¯å¦ä¸ºè·³è·ƒï¼ˆfrom åˆ° to çš„è·ç¦» > 1ï¼‰
 static inline bool isJump(const HexCoord& from, const HexCoord& to) {
-    return hexDist(from, to) > 1;
+    return std::abs(from.q - to.q) > 1 || std::abs(from.r - to.r) > 1 ||
+           std::abs((from.q - from.r) - (to.q - to.r)) > 1;
 }
 
 static std::vector<std::pair<HexCoord, HexCoord>> getAllMoves(
     const std::map<HexCoord, Player>& board, Player who) {
-    std::vector<std::pair<HexCoord, HexCoord>> result;
+    std::vector<std::pair<HexCoord, HexCoord>> all;
     for (const auto& kv : board) {
         if (kv.second != who) continue;
         auto moves = getMovesForPiece(board, kv.first);
-        for (const auto& to : moves)
-            result.emplace_back(kv.first, to);
+        for (const auto& dst : moves) all.emplace_back(kv.first, dst);
     }
-    return result;
+    return all;
 }
 
-// ======================= èµ°å­ =======================
-static inline void applyMove(std::map<HexCoord, Player>& board,
-                              HexCoord from, HexCoord to) {
-    board[to]   = board[from];
+static void applyMove(std::map<HexCoord, Player>& board,
+                       const HexCoord& from, const HexCoord& to) {
+    board[to] = board[from];
     board[from] = Player::None;
 }
 
-// ======================= èƒœè´Ÿåˆ¤å®š =======================
+// ======================= ÖÕ¾Ö¼ì²â =======================
 static bool isGameOver(const std::map<HexCoord, Player>& board, int playerCount) {
     const auto& zones = getTargetZones(playerCount);
     for (int pl = 0; pl < playerCount; ++pl) {
@@ -160,8 +186,7 @@ static bool isGameOver(const std::map<HexCoord, Player>& board, int playerCount)
         for (const auto& kv : board) {
             if (static_cast<int>(kv.second) != pl) continue;
             bool inTarget = false;
-            for (const auto& t : zones[pl])
-                if (t == kv.first) { inTarget = true; break; }
+            for (const auto& t : zones[pl]) if (t == kv.first) { inTarget = true; break; }
             if (!inTarget) { allInTarget = false; break; }
         }
         if (allInTarget) return true;
@@ -176,8 +201,7 @@ static Player getWinner(const std::map<HexCoord, Player>& board, int playerCount
         for (const auto& kv : board) {
             if (static_cast<int>(kv.second) != pl) continue;
             bool inTarget = false;
-            for (const auto& t : zones[pl])
-                if (t == kv.first) { inTarget = true; break; }
+            for (const auto& t : zones[pl]) if (t == kv.first) { inTarget = true; break; }
             if (!inTarget) { allInTarget = false; break; }
         }
         if (allInTarget) return static_cast<Player>(pl);
@@ -185,58 +209,43 @@ static Player getWinner(const std::map<HexCoord, Player>& board, int playerCount
     return Player::None;
 }
 
-// ======================= æœ‰å Rolloutï¼ˆæ ¸å¿ƒæ”¹è¿›ï¼‰ =======================
-// Îµ-greedy: 70% æ¦‚ç‡é€‰æœ€ä¼˜å‰è¿›èµ°æ³•ï¼Œ30% éšæœºæ¢ç´¢
-// è·³è·ƒèµ°æ³•åœ¨æ¯”è¾ƒä¸­è‡ªåŠ¨è·èƒœï¼ˆå› ä¸º hexDist å·®å¼‚ > 1ï¼‰
-static constexpr double GREEDY_PROB = 0.70;
-
+// ======================= Softmax Rollout =======================
 static void selectRolloutMove(
     const std::vector<std::pair<HexCoord, HexCoord>>& moves,
     const HexCoord& targetCenter,
     std::pair<HexCoord, HexCoord>& chosen) {
     if (moves.empty()) return;
-
-    // Îµ-greedy: éšæœºæ¢ç´¢
-    if (uni01(rng()) > GREEDY_PROB) {
-        chosen = moves[rng()() % moves.size()];
-        return;
-    }
-
-    // è´ªå©ªï¼šé€‰è·ç¦»ç›®æ ‡ä¸­å¿ƒæœ€è¿‘çš„èµ°æ³•
-    int bestIdx = 0;
-    int bestDist = hexDist(moves[0].second, targetCenter);
-    int bestJumpBonus = isJump(moves[0].first, moves[0].second) ? 0 : 1; // 0=è·³è·ƒä¼˜å…ˆ
-    for (size_t i = 1; i < moves.size(); ++i) {
+    const int n = static_cast<int>(moves.size());
+    std::vector<double> scores(n);
+    double maxScore = -1e9;
+    for (int i = 0; i < n; ++i) {
         int d = hexDist(moves[i].second, targetCenter);
-        int jb = isJump(moves[i].first, moves[i].second) ? 0 : 1;
-        // ä¼˜å…ˆè·³è·ƒï¼›è‹¥åŒä¸ºè·³è·ƒ/å•æ­¥ï¼Œé€‰è·ç¦»è¿‘çš„
-        if (jb < bestJumpBonus || (jb == bestJumpBonus && d < bestDist)) {
-            bestDist = d;
-            bestJumpBonus = jb;
-            bestIdx = static_cast<int>(i);
-        }
+        bool jump = isJump(moves[i].first, moves[i].second);
+        scores[i] = (jump ? 30.0 : 0.0) - static_cast<double>(d);
+        if (scores[i] > maxScore) maxScore = scores[i];
     }
-    chosen = moves[bestIdx];
+    double sumW = 0.0;
+    std::vector<double> weights(n);
+    for (int i = 0; i < n; ++i) {
+        weights[i] = std::exp((scores[i] - maxScore) / ROLLOUT_TEMP);
+        sumW += weights[i];
+    }
+    double r = uni01(rng()) * sumW, acc = 0.0;
+    for (int i = 0; i < n; ++i) {
+        acc += weights[i];
+        if (r <= acc) { chosen = moves[i]; return; }
+    }
+    chosen = moves.back();
 }
 
 static Player rolloutWinner(const std::map<HexCoord, Player>& boardState,
-                             int playerCount, int startPlayerIdx,
-                             int maxSteps = 80) {
-    auto board = boardState;
-    int cur = startPlayerIdx;
-
+                             int playerCount, int startPlayerIdx, int maxSteps = 120) {
+    auto board = boardState; int cur = startPlayerIdx;
     for (int step = 0; step < maxSteps; ++step) {
-        if (isGameOver(board, playerCount))
-            return getWinner(board, playerCount);
-
+        if (isGameOver(board, playerCount)) return getWinner(board, playerCount);
         Player who = static_cast<Player>(cur);
         auto moves = getAllMoves(board, who);
-        if (moves.empty()) {
-            cur = (cur + 1) % playerCount;
-            continue;
-        }
-
-        // æœ‰åé€‰æ‹©ï¼
+        if (moves.empty()) { cur = (cur + 1) % playerCount; continue; }
         HexCoord tc = targetCentroid(playerCount, cur);
         std::pair<HexCoord, HexCoord> pick;
         selectRolloutMove(moves, tc, pick);
@@ -246,25 +255,22 @@ static Player rolloutWinner(const std::map<HexCoord, Player>& boardState,
     return Player::None;
 }
 
-// ======================= å¢å¼ºå¯å‘å¼è¯„ä¼° =======================
-// ç»¼åˆè€ƒè™‘ï¼šå·±æ–¹è¿›åº¦ã€æ•Œæ–¹è¿›åº¦ã€è·³è·ƒæ½œåŠ›ã€æ£‹å­é˜»å¡
+// ======================= ÔöÇ¿Æô·¢Ê½ÆÀ¹À v2 =======================
 static double heuristicEval(const std::map<HexCoord, Player>& board,
                              Player aiPlayer, int playerCount) {
     const int aiPid = static_cast<int>(aiPlayer);
-
     auto evalPlayer = [&](int pid) -> double {
         const HexCoord tc = targetCentroid(playerCount, pid);
-        int total = 0;
+        const auto& targetZone = getTargetZones(playerCount)[pid];
+        std::set<HexCoord> targetSet(targetZone.begin(), targetZone.end());
+        int total = 0, maxDist = 0, blocked = 0, inTarget = 0;
         double sumDist = 0.0;
-        int blocked = 0;
-
         for (const auto& kv : board) {
             if (static_cast<int>(kv.second) != pid) continue;
             ++total;
-            int d = hexDist(kv.first, tc);
-            sumDist += d;
-
-            // æ£€æŸ¥æ˜¯å¦è¢«é˜»å¡ï¼ˆå…­ä¸ªæ–¹å‘éƒ½è¢«å æ®ï¼‰
+            int d = hexDist(kv.first, tc); sumDist += d;
+            if (d > maxDist) maxDist = d;
+            if (targetSet.count(kv.first)) ++inTarget;
             const int dirs[6][2] = {{1,0},{-1,0},{0,1},{0,-1},{1,-1},{-1,1}};
             int free = 0;
             for (auto& dd : dirs) {
@@ -272,99 +278,241 @@ static double heuristicEval(const std::map<HexCoord, Player>& board,
                 auto it = board.find(n);
                 if (it != board.end() && it->second == Player::None) ++free;
             }
-            if (free == 0) ++blocked;
+            if (free <= 1) ++blocked;
         }
-        if (total == 0) return 1.0;  // å·²åœ¨ç›®æ ‡ï¼ˆè·èƒœæ¡ä»¶ï¼‰
-
+        if (total == 0) return 1.0;
         double avgDist = sumDist / total;
-        double progress = 1.0 - (avgDist / 16.0);  // å½’ä¸€åŒ–
-        if (progress < 0.0) progress = 0.0;
-        if (progress > 1.0) progress = 1.0;
-
-        // é˜»å¡æƒ©ç½š
-        double blockPenalty = static_cast<double>(blocked) / total * 0.3;
-        return progress - blockPenalty;
+        double progress = 1.0 - (avgDist / 16.0);
+        if (progress < 0.0) progress = 0.0; if (progress > 1.0) progress = 1.0;
+        double targetBonus = static_cast<double>(inTarget) / total * 0.15;
+        double lagPenalty  = static_cast<double>(maxDist) / 16.0 * 0.25;
+        double blockPenalty = static_cast<double>(blocked) / total * 0.20;
+        return progress + targetBonus - lagPenalty - blockPenalty;
     };
-
     double aiScore = evalPlayer(aiPid);
-
-    // ç»¼åˆæ•Œæ–¹è¿›åº¦ï¼ˆå–æœ€å¨èƒè€…ï¼‰
     double worstOpp = 1.0;
     for (int p = 0; p < playerCount; ++p) {
         if (p == aiPid) continue;
         double oppScore = evalPlayer(p);
         if (oppScore < worstOpp) worstOpp = oppScore;
     }
-
-    // å·®å€¼æ˜ å°„åˆ° [-1, 1]
     double diff = aiScore - worstOpp;
-    if (diff > 1.0) diff = 1.0;
-    if (diff < -1.0) diff = -1.0;
+    if (diff > 1.0) diff = 1.0; if (diff < -1.0) diff = -1.0;
     return diff;
 }
 
-// ======================= MCTS ä¸»æœç´¢ =======================
+// ======================= ¿ª¾Ö¿â =======================
+bool loadOpeningBook(const std::string& filename) {
+    std::ifstream in(filename, std::ios::binary);
+    if (!in) return false;
+    g_openingBook.clear();
+    size_t count; in.read(reinterpret_cast<char*>(&count), sizeof(count));
+    for (size_t i = 0; i < count; ++i) {
+        OpeningEntry e;
+        in.read(reinterpret_cast<char*>(&e.from.q), sizeof(int));
+        in.read(reinterpret_cast<char*>(&e.from.r), sizeof(int));
+        in.read(reinterpret_cast<char*>(&e.to.q), sizeof(int));
+        in.read(reinterpret_cast<char*>(&e.to.r), sizeof(int));
+        in.read(reinterpret_cast<char*>(&e.wins), sizeof(int));
+        in.read(reinterpret_cast<char*>(&e.total), sizeof(int));
+        g_openingBook.push_back(e);
+    }
+    g_openingLoaded = true;
+    return true;
+}
+
+bool saveOpeningBook(const std::string& filename) {
+    std::ofstream out(filename, std::ios::binary);
+    if (!out) return false;
+    size_t count = g_openingBook.size();
+    out.write(reinterpret_cast<const char*>(&count), sizeof(count));
+    for (const auto& e : g_openingBook) {
+        out.write(reinterpret_cast<const char*>(&e.from.q), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&e.from.r), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&e.to.q), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&e.to.r), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&e.wins), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&e.total), sizeof(int));
+    }
+    return true;
+}
+
+// ÔÚ¿ª¾Ö¿âÖĞÆ¥Åäµ±Ç°¾ÖÃæµÄ×ß·¨
+static bool queryOpeningBook(const std::vector<MoveRecord>& history,
+    HexCoord& from, HexCoord& to) {
+    if (!g_openingLoaded || g_openingBook.empty()) return false;
+    int moveNum = static_cast<int>(history.size());
+    for (const auto& e : g_openingBook) {
+        // ¼ò»¯£º°´×ß·¨ĞòºÅÆ¥Åä
+        // ÍêÕûÊµÏÖĞè°´ÆåÅÌ×´Ì¬Æ¥Åä£¬ÕâÀïÏÈ×ö»ù±¾°æ±¾
+        if (e.total >= 5 && static_cast<double>(e.wins) / e.total >= 0.55) {
+            from = e.from; to = e.to; return true;
+        }
+    }
+    return false;
+}
+
+void recordGameToOpeningBook(const std::vector<MoveRecord>& history,
+                              Player winner, int playerCount) {
+    if (history.empty()) return;
+    // È¡Ã¿²½×ß·¨£¬¹éÈë¶ÔÓ¦Íæ¼ÒµÄ¿ª¾Ö¿â
+    for (const auto& mv : history) {
+        if (mv.fromPlayer != winner) continue; // Ö»¼ÇÂ¼Ê¤Õß×ß·¨
+        bool found = false;
+        for (auto& e : g_openingBook) {
+            if (e.from == mv.from && e.to == mv.to) {
+                e.wins++; e.total++; found = true; break;
+            }
+        }
+        if (!found) {
+            OpeningEntry e;
+            e.from = mv.from; e.to = mv.to; e.wins = 1; e.total = 1;
+            g_openingBook.push_back(e);
+        }
+    }
+    // °ÜÕß×ß·¨Ò²¼ÇÂ¼£¨²»¼ÆÊ¤³¡£©
+    for (const auto& mv : history) {
+        if (mv.fromPlayer == winner) continue;
+        bool found = false;
+        for (auto& e : g_openingBook) {
+            if (e.from == mv.from && e.to == mv.to) {
+                e.total++; found = true; break;
+            }
+        }
+        if (!found) {
+            OpeningEntry e;
+            e.from = mv.from; e.to = mv.to; e.wins = 0; e.total = 1;
+            g_openingBook.push_back(e);
+        }
+    }
+}
+
+// ======================= ×ÔÊÊÓ¦ C_PUCT =======================
+static double adaptiveCPuct(double avgProgress) {
+    // ¿ª¾Ö£¨½ø¶ÈµÍ£©¡ú ¸ßÌ½Ë÷£»ÖÕ¾Ö£¨½ø¶È¸ß£©¡ú ¶àÀûÓÃ
+    // avgProgress: 0(¿ªÊ¼) ~ 1(¿ìÓ®ÁË)
+    return C_PUCT_BASE * (1.5 - 0.8 * avgProgress);
+}
+
+// ======================= Æô·¢Ê½ÏÈÑé =======================
+static double heuristicPrior(const HexCoord& from, const HexCoord& to,
+                              const HexCoord& targetCenter) {
+    int dBefore = hexDist(from, targetCenter);
+    int dAfter  = hexDist(to, targetCenter);
+    double progressGain = static_cast<double>(dBefore - dAfter);
+    double jumpBonus = isJump(from, to) ? 5.0 : 0.0;
+    double h = (progressGain + jumpBonus) / 10.0;
+    if (h < 0.05) h = 0.05;  // ×îµÍÏÈÑé±ÜÃâÁã¸ÅÂÊ
+    if (h > 1.0) h = 1.0;
+    return h;
+}
+
+// ======================= MCTS Ö÷ËÑË÷ =======================
 MoveRecord getMove(const Board& bd, Player who) {
-    const auto& origBoard = bd.getBoardState();
-    const int playerCount = bd.getPlayerCount();
-    const int aiPid       = static_cast<int>(who);
+    return getMoveHeadless(bd.getBoardState(), bd.getPlayerCount(), who);
+}
 
-    // æ„é€ æ ¹èŠ‚ç‚¹
-    auto root = std::make_unique<MCTSNode>(
-        HexCoord(0,0), HexCoord(0,0), who, nullptr);
+MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
+                            int playerCount, Player who) {
+    const int aiPid = static_cast<int>(who);
 
+    // ---- ¼ÆËãÆ½¾ù½ø¶È£¨ÓÃÓÚ×ÔÊÊÓ¦C_PUCT£©----
+    double totalProgress = 0.0;
+    for (int p = 0; p < playerCount; ++p) {
+        HexCoord tc = targetCentroid(playerCount, p);
+        double sum = 0; int cnt = 0;
+        for (const auto& kv : origBoard) {
+            if (static_cast<int>(kv.second) == p) {
+                sum += hexDist(kv.first, tc); ++cnt;
+            }
+        }
+        if (cnt > 0) totalProgress += (1.0 - (sum / cnt) / 16.0);
+    }
+    double avgProgress = totalProgress / playerCount;
+
+    // ---- ¹¹Ôì¸ù½Úµã ----
+    auto root = std::make_unique<MCTSNode>(HexCoord(0,0), HexCoord(0,0), who, nullptr);
     {
         auto moves = getAllMoves(origBoard, who);
-        for (auto& m : moves)
-            root->untriedMoves.push_back(m);
+        for (auto& m : moves) root->untriedMoves.push_back(m);
     }
+    if (root->untriedMoves.empty()) return {};
 
-    if (root->untriedMoves.empty())
-        return {};
+    // ---- ÖÃ»»±í£¨±¾¾ÖËÑË÷£©----
+    TranspositionTable tt;
 
-    // ---- æ—¶é—´é¢„ç®—å¾ªç¯ ----
+    // ---- Ê±¼äÔ¤ËãÑ­»· ----
     auto startTime = std::chrono::steady_clock::now();
     int simCount = 0;
+    double cPUCT = adaptiveCPuct(avgProgress);
 
     while (true) {
         ++simCount;
 
-        // == â‘  Selection ==
+        // == ¢Ù Selection (½¥½ø¼Ó¿í + Æô·¢Ê½PUCT) ==
         MCTSNode* node = root.get();
         auto board = origBoard;
+        std::vector<std::pair<MCTSNode*, uint64_t>> path; // (node, moveKey) for RAVE backprop
 
         while (node->untriedMoves.empty() && !node->children.empty()) {
+            int nodePid = static_cast<int>(node->player);
+            HexCoord centroid = targetCentroid(playerCount, nodePid);
             MCTSNode* best = nullptr;
             double bestScore = -1e9;
+            const double logN = std::log(static_cast<double>(node->visits + 1));
 
             for (auto& c : node->children) {
                 double Q = (c->visits > 0)
-                         ? c->wins / static_cast<double>(c->visits)
-                         : 0.0;
-                double U = C_PUCT
-                         * std::sqrt(std::log(static_cast<double>(node->visits + 1))
-                                     / (1.0 + c->visits));
+                         ? c->wins / static_cast<double>(c->visits) : 0.0;
 
-                double score = U;
-                if (static_cast<int>(node->player) == aiPid)
-                    score += Q;
-                else
-                    score -= Q;
+                // RAVE: È«¾Ö×ß·¨Í³¼Æ
+                uint64_t mKey = packMove(c->from, c->to);
+                double raveVal = 0.0, raveWeight = 0.0;
+                auto rit = g_raveTable.find(mKey);
+                if (rit != g_raveTable.end() && rit->second.visits > 0) {
+                    raveVal = rit->second.wins / rit->second.visits;
+                    double beta = static_cast<double>(rit->second.visits)
+                                / (rit->second.visits + c->visits + RAVE_EQUIV);
+                    Q = (1.0 - beta) * Q + beta * raveVal;
+                }
+
+                double U = cPUCT * std::sqrt(logN / (1.0 + c->visits));
+                double prior = heuristicPrior(c->from, c->to, centroid);
+                double score = U + 0.3 * prior * std::sqrt(logN / (1.0 + c->visits));
+
+                if (nodePid == aiPid) score += Q;
+                else score -= Q;
 
                 if (score > bestScore) { bestScore = score; best = c.get(); }
             }
 
+            // ½¥½øÊ½¼Ó¿í
+            if (static_cast<int>(node->children.size()) <
+                static_cast<int>(std::sqrt(static_cast<double>(node->visits))) + 2) {
+                break;
+            }
+
             applyMove(board, best->from, best->to);
+            uint64_t mk = packMove(best->from, best->to);
+            path.push_back({best, mk});
             node = best;
         }
 
-        // == â‘¡ Expansion ==
+        // == ¢Ú Expansion (Æô·¢Ê½ÅÅĞòÕ¹¿ª) ==
         int nodePid = static_cast<int>(node->player);
         if (!node->untriedMoves.empty()) {
-            size_t idx = rng()() % node->untriedMoves.size();
-            auto from = node->untriedMoves[idx].first;
-            auto to = node->untriedMoves[idx].second;
-            std::swap(node->untriedMoves[idx], node->untriedMoves.back());
+            HexCoord centro = targetCentroid(playerCount, nodePid);
+            std::sort(node->untriedMoves.begin(), node->untriedMoves.end(),
+                [&](const auto& a, const auto& b) {
+                    int ga = hexDist(a.first, centro) - hexDist(a.second, centro)
+                           + (isJump(a.first, a.second) ? 6 : 0);
+                    int gb = hexDist(b.first, centro) - hexDist(b.second, centro)
+                           + (isJump(b.first, b.second) ? 6 : 0);
+                    return ga > gb;
+                });
+
+            auto from = node->untriedMoves.back().first;
+            auto to   = node->untriedMoves.back().second;
             node->untriedMoves.pop_back();
 
             applyMove(board, from, to);
@@ -374,14 +522,15 @@ MoveRecord getMove(const Board& bd, Player who) {
             auto child = std::make_unique<MCTSNode>(from, to, nextPlayer, node);
             {
                 auto childMoves = getAllMoves(board, nextPlayer);
-                for (auto& m : childMoves)
-                    child->untriedMoves.emplace_back(m);
+                for (auto& m : childMoves) child->untriedMoves.emplace_back(m);
             }
             node->children.push_back(std::move(child));
             node = node->children.back().get();
+            uint64_t mk = packMove(from, to);
+            path.push_back({node, mk});
         }
 
-        // == â‘¢ Simulation (æœ‰å Rollout) ==
+        // == ¢Û Simulation (Softmax Rollout) ==
         int simStartPid = static_cast<int>(node->player);
         Player winner = rolloutWinner(board, playerCount, simStartPid);
 
@@ -392,24 +541,37 @@ MoveRecord getMove(const Board& bd, Player who) {
             value = (winner == who) ? 1.0 : -1.0;
         }
 
-        // == â‘£ Backpropagation ==
-        while (node != nullptr) {
-            node->visits++;
-            node->wins += value;
-            node = node->parent;
+        // == ¢Ü Backpropagation (º¬RAVE¸üĞÂ) ==
+        // 4a. ¸üĞÂÊ÷ÄÚÂ·¾¶
+        MCTSNode* back = node;
+        while (back != nullptr) {
+            back->visits++;
+            back->wins += value;
+            back = back->parent;
         }
+        // 4b. ¸üĞÂRAVEÈ«¾Ö±í
+        for (auto& [pathNode, moveKey] : path) {
+            auto& rs = g_raveTable[moveKey];
+            rs.visits++;
+            rs.wins += value;
+        }
+        // 4c. ¸üĞÂÖÃ»»±í
+        uint64_t boardHash = hashBoard(board, playerCount);
+        auto& tte = tt[boardHash];
+        tte.visits++;
+        tte.wins += value;
 
-        // ---- æ—¶é—´æ£€æŸ¥ï¼ˆæ¯ 50 æ¬¡æ¨¡æ‹Ÿæ£€æŸ¥ä¸€æ¬¡ä»¥é™ä½å¼€é”€ï¼‰ ----
-        if (simCount % 50 == 0 && simCount >= MIN_SIMULATIONS) {
+        // ---- Ê±¼ä¼ì²é£¨Ã¿20´ÎÄ£Äâ£©----
+        if (simCount % 20 == 0 && simCount >= MIN_SIMULATIONS) {
             auto now = std::chrono::steady_clock::now();
             double elapsed = std::chrono::duration<double>(now - startTime).count();
             if (elapsed >= TIME_BUDGET_SEC) break;
         }
     }
 
-    // ---- é€‰æœ€ä½³èµ°æ³• ----
+    // ---- Ñ¡×î¼Ñ×ß·¨£¨ÓÅÏÈ·ÃÎÊ´ÎÊı£¬´ÎÓÅÊ¤ÂÊ£©----
     MCTSNode* best = nullptr;
-    int    bestVisits = -1;
+    int bestVisits = -1;
     double bestWinRate = -1e9;
 
     for (auto& c : root->children) {
@@ -424,13 +586,16 @@ MoveRecord getMove(const Board& bd, Player who) {
     }
 
     if (!best) return {};
-
     lastRoot = std::move(root);
-
     return { best->from, best->to, who, origBoard.at(best->to) };
 }
 
-// ======================= å…¨å±€å˜é‡ =======================
+void resetAI() {
+    g_raveTable.clear();
+    lastRoot.reset();
+}
+
+// ======================= È«¾Ö±äÁ¿ =======================
 std::unique_ptr<MCTSNode> lastRoot;
 
 int& AI_LEVEL() {

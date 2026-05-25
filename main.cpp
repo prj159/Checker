@@ -1,13 +1,51 @@
-ï»¿#include "Board.h"
+#include "Board.h"
 #include "ChooseMode.h"
+#include "selfplay.h"
+#include "AI_MCTS.h"
 #include <graphics.h>
+#include <iostream>
+#include <string>
+#include <cstdlib>
 
-int main()
+int main(int argc, char* argv[])
 {
+    // ========== ×Ô¶ÔÞÄÄ£Ê½£ºchecker.exe --selfplay 100 ==========
+    if (argc >= 3 && std::string(argv[1]) == "--selfplay") {
+        int numGames = std::atoi(argv[2]);
+        int playerCount = 2;
+        if (argc >= 4) playerCount = std::atoi(argv[3]);
+
+        std::cout << "========== ÌøÆå×Ô¶ÔÞÄÒýÇæ ==========" << std::endl;
+        std::cout << "×Ü¾ÖÊý: " << numGames << ", Íæ¼ÒÊý: " << playerCount << std::endl;
+        std::cout << "ËÑË÷Ê±¼ä: 5Ãë/²½" << std::endl;
+        std::cout << "¿ªÊ¼¶ÔÞÄ..." << std::endl << std::endl;
+
+        // ³¢ÊÔ¼ÓÔØÒÑÓÐ¿ª¾Ö¿â
+        if (AI::loadOpeningBook("opening_book.dat")) {
+            std::cout << "ÒÑ¼ÓÔØ¿ª¾Ö¿â opening_book.dat" << std::endl;
+        }
+
+        SelfPlay::BatchStats stats = SelfPlay::runBatch(numGames, playerCount);
+
+        std::cout << "\n¶ÔÞÄÍê³É¡£¿ª¾Ö¿âÒÑ×Ô¶¯±£´æ¡£" << std::endl;
+        return 0;
+    }
+
+    // ========== ²ÎÊýËÑË÷Ä£Ê½ ==========
+    if (argc >= 3 && std::string(argv[1]) == "--tune") {
+        int gamesPerConfig = std::atoi(argv[2]);
+        SelfPlay::paramGridSearch(gamesPerConfig);
+        return 0;
+    }
+
+    // ========== Õý³£ÓÎÏ·Ä£Ê½ ==========
     int playerCount = ChooseMode();      // 2/4/6
-    int aiMode = chooseAI();        // 0 äººäºº  1 äººæœº
+    int aiMode = chooseAI();             // 0 ÈËÈË  1 ÈË»ú
     bool humanFirst = false;
     if (aiMode == 1) { humanFirst = (chooseFirst() == 1); }
+
+    // ³¢ÊÔ¼ÓÔØ¿ª¾Ö¿â
+    AI::loadOpeningBook("opening_book.dat");
 
     int W = 800, H = 900;
     initgraph(W, H);
@@ -15,5 +53,9 @@ int main()
     Board game(W, H, playerCount, aiMode, humanFirst);
     game.run();
     closegraph();
+
+    // ÓÎÏ·½áÊøºó±£´æ¿ª¾Ö¿â
+    AI::saveOpeningBook("opening_book.dat");
+
     return 0;
 }
