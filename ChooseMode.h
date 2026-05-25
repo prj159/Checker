@@ -1,3 +1,4 @@
-#pragma once
-int ChooseMode();   // ·µ»Ø 2/4/6 ÈË
-int chooseAI();     // ·µ»Ø 0=ÈËÈË  1=ÈË»ú
+ï»¿#pragma once
+int ChooseMode();   // è¿”å›ž 2/4/6 äºº
+int chooseAI();     // è¿”å›ž 0=äººäºº  1=äººæœº
+int chooseFirst();  // è¿”å›ž 1=äººç±»å…ˆæ‰‹  0=AIå…ˆæ‰‹

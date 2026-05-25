@@ -1,16 +1,13 @@
-#include "Board.h"
+Ôªø#include "Board.h"
 #include "ChooseMode.h"
 #include <graphics.h>
 
 int main()
 {
     int playerCount = ChooseMode();      // 2/4/6
-    int aiMode = chooseAI();        // 0 »À»À  1 »Àª˙
+    int aiMode = chooseAI();        // 0 ‰∫∫‰∫∫  1 ‰∫∫Êú∫
     bool humanFirst = false;
-    if (aiMode == 1) {
-        int whoFirst = MessageBox(GetHWnd(), L"»À¿‡œ» ÷£ø", L"œ» ÷—°‘Ò", MB_YESNO);
-        humanFirst = (whoFirst == IDYES);
-    }
+    if (aiMode == 1) { humanFirst = (chooseFirst() == 1); }
 
     int W = 800, H = 900;
     initgraph(W, H);

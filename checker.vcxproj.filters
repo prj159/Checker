@@ -24,7 +24,7 @@
     <ClCompile Include="ChooseMode.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="AI.cpp">
+    <ClCompile Include="AI_MCTS.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -35,7 +35,7 @@
     <ClInclude Include="ChooseMode.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="AI.h">
+    <ClInclude Include="AI_MCTS.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

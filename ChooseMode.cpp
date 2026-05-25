@@ -1,4 +1,4 @@
-#include "ChooseMode.h"
+ï»¿#include "ChooseMode.h"
 #include <graphics.h>
 #include <conio.h>
 
@@ -8,10 +8,10 @@ int ChooseMode()
     initgraph(wid, hei);
     setbkcolor(RGB(40, 40, 40));
     cleardevice();
-    settextstyle(24, 0, _T("Î¢ÈíÑÅºÚ"));
+    settextstyle(24, 0, _T("å¾®è½¯é›…é»‘"));
     settextcolor(WHITE);
-    outtextxy(120, 40, _T("ÇëÑ¡ÔñÈËÊý"));
-    const wchar_t* txt[3] = { _T("2 ÈË"), _T("4 ÈË"), _T("6 ÈË") };
+    outtextxy(120, 40, _T("è¯·é€‰æ‹©äººæ•°"));
+    const wchar_t* txt[3] = { _T("2 äºº"), _T("4 äºº"), _T("6 äºº") };
     for (int i = 0; i < 3; ++i)
     {
         outtextxy(160, 110 + i * 50, txt[i]);
@@ -40,9 +40,9 @@ int chooseAI()
     int w = 400, h = 200;
     initgraph(w, h);
     setbkcolor(RGB(40, 40, 40)); cleardevice();
-    settextstyle(24, 0, _T("Î¢ÈíÑÅºÚ")); settextcolor(WHITE);
-    outtextxy(120, 30, _T("ÓÎÏ·Ä£Ê½"));
-    const wchar_t* txt[2] = { _T("ÈËÈË"), _T("ÈË»ú") };
+    settextstyle(24, 0, _T("å¾®è½¯é›…é»‘")); settextcolor(WHITE);
+    outtextxy(120, 30, _T("æ¸¸æˆæ¨¡å¼"));
+    const wchar_t* txt[2] = { _T("äººäºº"), _T("äººæœº") };
     for (int i = 0;i < 2;++i) { outtextxy(160, 90 + i * 50, txt[i]); rectangle(150, 85 + i * 50, 250, 125 + i * 50); }
     int r = -1;
     while (r == -1) {
@@ -57,5 +57,34 @@ int chooseAI()
         }
     }
     closegraph();
-    return r;   // 0 ÈËÈË  1 ÈË»ú
+    return r;   // 0 äººäºº  1 äººæœº
+}
+
+int chooseFirst()
+{
+    int w = 400, h = 200;
+    initgraph(w, h);
+    setbkcolor(RGB(40, 40, 40)); cleardevice();
+    settextstyle(24, 0, _T("å¾®è½¯é›…é»‘")); settextcolor(WHITE);
+    outtextxy(120, 30, _T("å…ˆæ‰‹é€‰æ‹©"));
+    const wchar_t* txt[2] = { _T("äººç±»å…ˆæ‰‹"), _T("AI å…ˆæ‰‹") };
+    for (int i = 0; i < 2; ++i) {
+        outtextxy(155, 90 + i * 50, txt[i]);
+        rectangle(150, 85 + i * 50, 260, 125 + i * 50);
+    }
+    int r = -1;
+    while (r == -1) {
+        if (MouseHit()) {
+            MOUSEMSG m = GetMouseMsg();
+            if (m.uMsg == WM_LBUTTONDOWN)
+                for (int i = 0; i < 2; ++i)
+                    if (m.x >= 150 && m.x <= 260 &&
+                        m.y >= 85 + i * 50 && m.y <= 125 + i * 50) {
+                        r = (i == 0) ? 1 : 0;   // 0=äººç±»å…ˆæ‰‹(easy), 1=AIå…ˆæ‰‹
+                        break;
+                    }
+        }
+    }
+    closegraph();
+    return r;   // 1=äººç±»å…ˆæ‰‹  0=AIå…ˆæ‰‹
 }

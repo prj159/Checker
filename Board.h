@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include <graphics.h>   // EasyX
 #include <conio.h>
 #include <string>
@@ -32,8 +32,8 @@ private:
     int originX, originY;
     int currentPlayer;                  // 0..playerCount-1
     int playerCount;
-    bool aiMode;        // ÐÂÔö
-    bool humanFirst;    // ÐÂÔö
+    bool aiMode;        // æ–°å¢ž
+    bool humanFirst;    // æ–°å¢ž
     bool hasSelection;
     HexCoord selectedHex;
     std::map<HexCoord, Player> boardState;
@@ -63,9 +63,10 @@ public:
     void undoMove();
     void display();
     const std::map<HexCoord, Player>& getBoardState() const;
+    int getPlayerCount() const { return playerCount; }
     void findLegalMovesFor(const HexCoord& from, std::vector<HexCoord>& out) const;
     // Board.h
     void findJumps(const HexCoord& from,
         std::vector<HexCoord>& moves,
-        mutable std::map<HexCoord, bool>& visited) const;
+        std::map<HexCoord, bool>& visited) const;
 };
