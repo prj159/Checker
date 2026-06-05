@@ -1,15 +1,15 @@
 /****************************************************************************
- *  AI_MCTS.cpp  --  MCTS AI v4£º½¥½ø¼Ó¿í + RAVE + ÖÃ»»±í + softmax rollout
+ *  AI_MCTS.cpp  --  MCTS AI v4ï¼šæ¸è¿›åŠ å®½ + RAVE + ç½®æ¢è¡¨ + softmax rollout
  *
- *  ÔöÇ¿£º
- *    1. ½¥½ø¼Ó¿í (Progressive Widening)
- *    2. Æô·¢Ê½ PUCT ÏÈÑé
- *    3. Softmax rollout£¨Ìæ´úÓ² ¦Å-greedy£©
- *    4. RAVE ¿ç½Úµã×ß·¨Í³¼Æ
- *    5. ÖÃ»»±í (Transposition Table)
- *    6. ÔöÇ¿Æô·¢Ê½ÆÀ¹À v2
- *    7. ×ÔÊÊÓ¦ C_PUCT
- *    8. ¿ª¾Ö¿âÖ§³Ö
+ *  å¢å¼ºï¼š
+ *    1. æ¸è¿›åŠ å®½ (Progressive Widening)
+ *    2. å¯å‘å¼ PUCT å…ˆéªŒ
+ *    3. Softmax rolloutï¼ˆæ›¿ä»£ç¡¬ Îµ-greedyï¼‰
+ *    4. RAVE è·¨èŠ‚ç‚¹èµ°æ³•ç»Ÿè®¡
+ *    5. ç½®æ¢è¡¨ (Transposition Table)
+ *    6. å¢å¼ºå¯å‘å¼è¯„ä¼° v2
+ *    7. è‡ªé€‚åº” C_PUCT
+ *    8. å¼€å±€åº“æ”¯æŒ
  ***************************************************************************/
 #include "AI_MCTS.h"
 #include <set>
@@ -22,14 +22,14 @@
 
 namespace AI {
 
-// ======================= ²ÎÊı =======================
-static constexpr double TIME_BUDGET_SEC   = 5.0;     // Ã¿´Î×ßÆå×î¶à 5 Ãë
-static constexpr int    MIN_SIMULATIONS   = 200;      // ±£µ×Ä£Äâ´ÎÊı
-static constexpr double C_PUCT_BASE       = 2.0;      // »ù´¡Ì½Ë÷³£Êı
-static constexpr double ROLLOUT_TEMP      = 0.5;      // softmax ÎÂ¶È£¨Ô½Ğ¡Ô½Ì°À·£©
-static constexpr double RAVE_EQUIV        = 500.0;    // RAVE µÈĞ§Ñù±¾Êı
+// ======================= å‚æ•° =======================
+static constexpr double TIME_BUDGET_SEC   = 5.0;     // æ¯æ¬¡èµ°æ£‹æœ€å¤š 5 ç§’
+static constexpr int    MIN_SIMULATIONS   = 200;      // ä¿åº•æ¨¡æ‹Ÿæ¬¡æ•°
+static constexpr double C_PUCT_BASE       = 2.0;      // åŸºç¡€æ¢ç´¢å¸¸æ•°
+static constexpr double ROLLOUT_TEMP      = 0.5;      // softmax æ¸©åº¦ï¼ˆè¶Šå°è¶Šè´ªå©ªï¼‰
+static constexpr double RAVE_EQUIV        = 500.0;    // RAVE ç­‰æ•ˆæ ·æœ¬æ•°
 
-// ======================= Ëæ»úÊı =======================
+// ======================= éšæœºæ•° =======================
 static std::mt19937& rng() {
     static std::mt19937 mt(
         static_cast<unsigned>(std::chrono::steady_clock::now().time_since_epoch().count())
@@ -38,14 +38,14 @@ static std::mt19937& rng() {
 }
 static std::uniform_real_distribution<double> uni01(0.0, 1.0);
 
-// ======================= È«¾Ö×´Ì¬ =======================
+// ======================= å…¨å±€çŠ¶æ€ =======================
 static std::unordered_map<uint64_t, RAVEStats> g_raveTable;
-static std::vector<OpeningEntry> g_openingBook;  // ¿ª¾Ö¿â
+static std::vector<OpeningEntry> g_openingBook;  // å¼€å±€åº“
 static bool g_openingLoaded = false;
 
 std::unordered_map<uint64_t, RAVEStats>& getRAVETable() { return g_raveTable; }
 
-// ======================= Ä¿±êÇøÓò±í =======================
+// ======================= ç›®æ ‡åŒºåŸŸè¡¨ =======================
 static const std::vector<std::vector<HexCoord>>& getTargetZones(int playerCount) {
     static bool init = false;
     static std::vector<std::vector<HexCoord>> zones2, zones4, zones6;
@@ -75,7 +75,7 @@ static const std::vector<std::vector<HexCoord>>& getTargetZones(int playerCount)
     return zones6;
 }
 
-// Ä¿±êÇøÓòÖĞĞÄ
+// ç›®æ ‡åŒºåŸŸä¸­å¿ƒ
 static HexCoord targetCentroid(int playerCount, int pid) {
     static HexCoord cache[3][6]; static bool cached = false;
     if (!cached) {
@@ -96,13 +96,13 @@ static HexCoord targetCentroid(int playerCount, int pid) {
     return cache[idx][pid];
 }
 
-// ======================= Áù½Ç¾àÀë =======================
+// ======================= å…­è§’è·ç¦» =======================
 static inline int hexDist(const HexCoord& a, const HexCoord& b) {
     int dq = a.q - b.q, dr = a.r - b.r, ds = -dq - dr;
     return (std::abs(dq) + std::abs(dr) + std::abs(ds)) / 2;
 }
 
-// ======================= ÆåÅÌ¹şÏ£ =======================
+// ======================= æ£‹ç›˜å“ˆå¸Œ =======================
 static uint64_t hashBoard(const std::map<HexCoord, Player>& board, int playerCount) {
     uint64_t h = 0x9e3779b97f4a7c15ULL;
     for (const auto& kv : board) {
@@ -115,7 +115,7 @@ static uint64_t hashBoard(const std::map<HexCoord, Player>& board, int playerCou
     return h;
 }
 
-// ======================= ×ß·¨Éú³É =======================
+// ======================= èµ°æ³•ç”Ÿæˆ =======================
 static void findJumpsRecursive(const std::map<HexCoord, Player>& board,
                                 const HexCoord& from, std::vector<HexCoord>& moves,
                                 std::map<HexCoord, bool>& visited) {
@@ -178,7 +178,7 @@ static void applyMove(std::map<HexCoord, Player>& board,
     board[from] = Player::None;
 }
 
-// ======================= ÖÕ¾Ö¼ì²â =======================
+// ======================= ç»ˆå±€æ£€æµ‹ =======================
 static bool isGameOver(const std::map<HexCoord, Player>& board, int playerCount) {
     const auto& zones = getTargetZones(playerCount);
     for (int pl = 0; pl < playerCount; ++pl) {
@@ -255,7 +255,7 @@ static Player rolloutWinner(const std::map<HexCoord, Player>& boardState,
     return Player::None;
 }
 
-// ======================= ÔöÇ¿Æô·¢Ê½ÆÀ¹À v2 =======================
+// ======================= å¢å¼ºå¯å‘å¼è¯„ä¼° v2 =======================
 static double heuristicEval(const std::map<HexCoord, Player>& board,
                              Player aiPlayer, int playerCount) {
     const int aiPid = static_cast<int>(aiPlayer);
@@ -301,7 +301,7 @@ static double heuristicEval(const std::map<HexCoord, Player>& board,
     return diff;
 }
 
-// ======================= ¿ª¾Ö¿â =======================
+// ======================= å¼€å±€åº“ =======================
 bool loadOpeningBook(const std::string& filename) {
     std::ifstream in(filename, std::ios::binary);
     if (!in) return false;
@@ -337,14 +337,14 @@ bool saveOpeningBook(const std::string& filename) {
     return true;
 }
 
-// ÔÚ¿ª¾Ö¿âÖĞÆ¥Åäµ±Ç°¾ÖÃæµÄ×ß·¨
+// åœ¨å¼€å±€åº“ä¸­åŒ¹é…å½“å‰å±€é¢çš„èµ°æ³•
 static bool queryOpeningBook(const std::vector<MoveRecord>& history,
     HexCoord& from, HexCoord& to) {
     if (!g_openingLoaded || g_openingBook.empty()) return false;
     int moveNum = static_cast<int>(history.size());
     for (const auto& e : g_openingBook) {
-        // ¼ò»¯£º°´×ß·¨ĞòºÅÆ¥Åä
-        // ÍêÕûÊµÏÖĞè°´ÆåÅÌ×´Ì¬Æ¥Åä£¬ÕâÀïÏÈ×ö»ù±¾°æ±¾
+        // ç®€åŒ–ï¼šæŒ‰èµ°æ³•åºå·åŒ¹é…
+        // å®Œæ•´å®ç°éœ€æŒ‰æ£‹ç›˜çŠ¶æ€åŒ¹é…ï¼Œè¿™é‡Œå…ˆåšåŸºæœ¬ç‰ˆæœ¬
         if (e.total >= 5 && static_cast<double>(e.wins) / e.total >= 0.55) {
             from = e.from; to = e.to; return true;
         }
@@ -355,9 +355,9 @@ static bool queryOpeningBook(const std::vector<MoveRecord>& history,
 void recordGameToOpeningBook(const std::vector<MoveRecord>& history,
                               Player winner, int playerCount) {
     if (history.empty()) return;
-    // È¡Ã¿²½×ß·¨£¬¹éÈë¶ÔÓ¦Íæ¼ÒµÄ¿ª¾Ö¿â
+    // å–æ¯æ­¥èµ°æ³•ï¼Œå½’å…¥å¯¹åº”ç©å®¶çš„å¼€å±€åº“
     for (const auto& mv : history) {
-        if (mv.fromPlayer != winner) continue; // Ö»¼ÇÂ¼Ê¤Õß×ß·¨
+        if (mv.fromPlayer != winner) continue; // åªè®°å½•èƒœè€…èµ°æ³•
         bool found = false;
         for (auto& e : g_openingBook) {
             if (e.from == mv.from && e.to == mv.to) {
@@ -370,7 +370,7 @@ void recordGameToOpeningBook(const std::vector<MoveRecord>& history,
             g_openingBook.push_back(e);
         }
     }
-    // °ÜÕß×ß·¨Ò²¼ÇÂ¼£¨²»¼ÆÊ¤³¡£©
+    // è´¥è€…èµ°æ³•ä¹Ÿè®°å½•ï¼ˆä¸è®¡èƒœåœºï¼‰
     for (const auto& mv : history) {
         if (mv.fromPlayer == winner) continue;
         bool found = false;
@@ -387,14 +387,14 @@ void recordGameToOpeningBook(const std::vector<MoveRecord>& history,
     }
 }
 
-// ======================= ×ÔÊÊÓ¦ C_PUCT =======================
+// ======================= è‡ªé€‚åº” C_PUCT =======================
 static double adaptiveCPuct(double avgProgress) {
-    // ¿ª¾Ö£¨½ø¶ÈµÍ£©¡ú ¸ßÌ½Ë÷£»ÖÕ¾Ö£¨½ø¶È¸ß£©¡ú ¶àÀûÓÃ
-    // avgProgress: 0(¿ªÊ¼) ~ 1(¿ìÓ®ÁË)
+    // å¼€å±€ï¼ˆè¿›åº¦ä½ï¼‰â†’ é«˜æ¢ç´¢ï¼›ç»ˆå±€ï¼ˆè¿›åº¦é«˜ï¼‰â†’ å¤šåˆ©ç”¨
+    // avgProgress: 0(å¼€å§‹) ~ 1(å¿«èµ¢äº†)
     return C_PUCT_BASE * (1.5 - 0.8 * avgProgress);
 }
 
-// ======================= Æô·¢Ê½ÏÈÑé =======================
+// ======================= å¯å‘å¼å…ˆéªŒ =======================
 static double heuristicPrior(const HexCoord& from, const HexCoord& to,
                               const HexCoord& targetCenter) {
     int dBefore = hexDist(from, targetCenter);
@@ -402,12 +402,12 @@ static double heuristicPrior(const HexCoord& from, const HexCoord& to,
     double progressGain = static_cast<double>(dBefore - dAfter);
     double jumpBonus = isJump(from, to) ? 5.0 : 0.0;
     double h = (progressGain + jumpBonus) / 10.0;
-    if (h < 0.05) h = 0.05;  // ×îµÍÏÈÑé±ÜÃâÁã¸ÅÂÊ
+    if (h < 0.05) h = 0.05;  // æœ€ä½å…ˆéªŒé¿å…é›¶æ¦‚ç‡
     if (h > 1.0) h = 1.0;
     return h;
 }
 
-// ======================= MCTS Ö÷ËÑË÷ =======================
+// ======================= MCTS ä¸»æœç´¢ =======================
 MoveRecord getMove(const Board& bd, Player who) {
     return getMoveHeadless(bd.getBoardState(), bd.getPlayerCount(), who);
 }
@@ -416,7 +416,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
                             int playerCount, Player who) {
     const int aiPid = static_cast<int>(who);
 
-    // ---- ¼ÆËãÆ½¾ù½ø¶È£¨ÓÃÓÚ×ÔÊÊÓ¦C_PUCT£©----
+    // ---- è®¡ç®—å¹³å‡è¿›åº¦ï¼ˆç”¨äºè‡ªé€‚åº”C_PUCTï¼‰----
     double totalProgress = 0.0;
     for (int p = 0; p < playerCount; ++p) {
         HexCoord tc = targetCentroid(playerCount, p);
@@ -430,7 +430,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
     }
     double avgProgress = totalProgress / playerCount;
 
-    // ---- ¹¹Ôì¸ù½Úµã ----
+    // ---- æ„é€ æ ¹èŠ‚ç‚¹ ----
     auto root = std::make_unique<MCTSNode>(HexCoord(0,0), HexCoord(0,0), who, nullptr);
     {
         auto moves = getAllMoves(origBoard, who);
@@ -438,10 +438,10 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
     }
     if (root->untriedMoves.empty()) return {};
 
-    // ---- ÖÃ»»±í£¨±¾¾ÖËÑË÷£©----
+    // ---- ç½®æ¢è¡¨ï¼ˆæœ¬å±€æœç´¢ï¼‰----
     TranspositionTable tt;
 
-    // ---- Ê±¼äÔ¤ËãÑ­»· ----
+    // ---- æ—¶é—´é¢„ç®—å¾ªç¯ ----
     auto startTime = std::chrono::steady_clock::now();
     int simCount = 0;
     double cPUCT = adaptiveCPuct(avgProgress);
@@ -449,7 +449,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
     while (true) {
         ++simCount;
 
-        // == ¢Ù Selection (½¥½ø¼Ó¿í + Æô·¢Ê½PUCT) ==
+        // == â‘  Selection (æ¸è¿›åŠ å®½ + å¯å‘å¼PUCT) ==
         MCTSNode* node = root.get();
         auto board = origBoard;
         std::vector<std::pair<MCTSNode*, uint64_t>> path; // (node, moveKey) for RAVE backprop
@@ -465,7 +465,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
                 double Q = (c->visits > 0)
                          ? c->wins / static_cast<double>(c->visits) : 0.0;
 
-                // RAVE: È«¾Ö×ß·¨Í³¼Æ
+                // RAVE: å…¨å±€èµ°æ³•ç»Ÿè®¡
                 uint64_t mKey = packMove(c->from, c->to);
                 double raveVal = 0.0, raveWeight = 0.0;
                 auto rit = g_raveTable.find(mKey);
@@ -486,7 +486,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
                 if (score > bestScore) { bestScore = score; best = c.get(); }
             }
 
-            // ½¥½øÊ½¼Ó¿í
+            // æ¸è¿›å¼åŠ å®½
             if (static_cast<int>(node->children.size()) <
                 static_cast<int>(std::sqrt(static_cast<double>(node->visits))) + 2) {
                 break;
@@ -498,7 +498,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
             node = best;
         }
 
-        // == ¢Ú Expansion (Æô·¢Ê½ÅÅĞòÕ¹¿ª) ==
+        // == â‘¡ Expansion (å¯å‘å¼æ’åºå±•å¼€) ==
         int nodePid = static_cast<int>(node->player);
         if (!node->untriedMoves.empty()) {
             HexCoord centro = targetCentroid(playerCount, nodePid);
@@ -530,7 +530,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
             path.push_back({node, mk});
         }
 
-        // == ¢Û Simulation (Softmax Rollout) ==
+        // == â‘¢ Simulation (Softmax Rollout) ==
         int simStartPid = static_cast<int>(node->player);
         Player winner = rolloutWinner(board, playerCount, simStartPid);
 
@@ -541,27 +541,27 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
             value = (winner == who) ? 1.0 : -1.0;
         }
 
-        // == ¢Ü Backpropagation (º¬RAVE¸üĞÂ) ==
-        // 4a. ¸üĞÂÊ÷ÄÚÂ·¾¶
+        // == â‘£ Backpropagation (å«RAVEæ›´æ–°) ==
+        // 4a. æ›´æ–°æ ‘å†…è·¯å¾„
         MCTSNode* back = node;
         while (back != nullptr) {
             back->visits++;
             back->wins += value;
             back = back->parent;
         }
-        // 4b. ¸üĞÂRAVEÈ«¾Ö±í
+        // 4b. æ›´æ–°RAVEå…¨å±€è¡¨
         for (auto& [pathNode, moveKey] : path) {
             auto& rs = g_raveTable[moveKey];
             rs.visits++;
             rs.wins += value;
         }
-        // 4c. ¸üĞÂÖÃ»»±í
+        // 4c. æ›´æ–°ç½®æ¢è¡¨
         uint64_t boardHash = hashBoard(board, playerCount);
         auto& tte = tt[boardHash];
         tte.visits++;
         tte.wins += value;
 
-        // ---- Ê±¼ä¼ì²é£¨Ã¿20´ÎÄ£Äâ£©----
+        // ---- æ—¶é—´æ£€æŸ¥ï¼ˆæ¯20æ¬¡æ¨¡æ‹Ÿï¼‰----
         if (simCount % 20 == 0 && simCount >= MIN_SIMULATIONS) {
             auto now = std::chrono::steady_clock::now();
             double elapsed = std::chrono::duration<double>(now - startTime).count();
@@ -569,7 +569,7 @@ MoveRecord getMoveHeadless(const std::map<HexCoord, Player>& origBoard,
         }
     }
 
-    // ---- Ñ¡×î¼Ñ×ß·¨£¨ÓÅÏÈ·ÃÎÊ´ÎÊı£¬´ÎÓÅÊ¤ÂÊ£©----
+    // ---- é€‰æœ€ä½³èµ°æ³•ï¼ˆä¼˜å…ˆè®¿é—®æ¬¡æ•°ï¼Œæ¬¡ä¼˜èƒœç‡ï¼‰----
     MCTSNode* best = nullptr;
     int bestVisits = -1;
     double bestWinRate = -1e9;
@@ -595,7 +595,7 @@ void resetAI() {
     lastRoot.reset();
 }
 
-// ======================= È«¾Ö±äÁ¿ =======================
+// ======================= å…¨å±€å˜é‡ =======================
 std::unique_ptr<MCTSNode> lastRoot;
 
 int& AI_LEVEL() {
