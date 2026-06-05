@@ -7,16 +7,12 @@ Release/
 *.suo
 *.sdf
 *.opensdf
-*.db
-*.db-shm
-*.db-wal
 *.ipch
 *.iobj
 *.ipdb
 *.idb
 *.pdb
 *.ilk
-*.exe
 *.obj
 *.tlog
 *.log
