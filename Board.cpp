@@ -55,31 +55,34 @@ void Board::initializeBoard() {
     const std::vector<HexCoord> bases[3] = {
         /* 2 人 */
         {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-         HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
-         HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-         HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+        HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),/*P0*/
+        HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+        HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)/*P1*/
+        },
          /* 4 人 */
-         {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-          HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
-          HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-          HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
-          HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
-          HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),
-          HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
-          HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
+        {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+        HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),/*P0*/
+        HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+        HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),/*P1*/
+        HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+        HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),/*P2*/
+        HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+        HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)/*P3*/
+        },
           /* 6 人 */
-          {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-           HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),
-           HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-           HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),
-           HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
-           HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),
-           HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
-           HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),
-           HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
-           HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4),
-           HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
-           HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)}
+        {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+        HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5),/*P0*/
+        HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
+        HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5),/*P1*/
+        HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+        HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4),/*P2*/
+        HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+        HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4),/*P3*/
+        HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
+        HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4),/*P4*/
+        HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
+        HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)/*P5*/
+        }
     };
     int idx = (playerCount == 2 ? 0 : playerCount == 4 ? 1 : 2);
     for (size_t i = 0; i < bases[idx].size(); ++i)
@@ -93,47 +96,48 @@ void Board::checkVictory() {
         {
             /* 玩家0的目标区域（原玩家1的基地） */
             {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-             HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
-             /* 玩家1的目标区域（原玩家0的基地） */
-             {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-              HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)}
+            HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+            /* 玩家1的目标区域（原玩家0的基地） */
+            {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+            HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)}
          },
         /* 4人模式 */
         {
             /* 玩家0的目标区域 */
             {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
-             HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
-             /* 玩家1的目标区域 */
-             {HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
-              HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
-              /* 玩家2的目标区域 */
-              {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-               HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
-               /* 玩家3的目标区域 */
-               {HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
-                HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)}
+            HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
+            /* 玩家1的目标区域 */
+            {HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+            HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
+            /* 玩家2的目标区域 */
+            {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+            HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
+            /* 玩家3的目标区域 */
+            {HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+            HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)}
            },
         /* 6人模式 */
         {
             /* 玩家0的目标区域 */
             {HexCoord(4, -8),HexCoord(3, -7),HexCoord(4, -7),HexCoord(2, -6),HexCoord(3, -6),HexCoord(4, -6),
              HexCoord(1, -5),HexCoord(2, -5),HexCoord(3, -5),HexCoord(4, -5)},
-             /* 玩家1的目标区域 */
-             {HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
-              HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
-              /* 玩家2的目标区域 */
-              {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
-               HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
-               /* 玩家3的目标区域 */
-               {HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
-                HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)},
-                /* 玩家4的目标区域 */
-                {HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
-                 HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4)},
-                 /* 玩家5的目标区域 */
-                 {HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
-                  HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)}
-             }
+            /* 玩家1的目标区域 */
+            {HexCoord(-4, -1),HexCoord(-3, -2),HexCoord(-4, -2),HexCoord(-2, -3),HexCoord(-3, -3),HexCoord(-4, -3),
+            HexCoord(-1, -4),HexCoord(-2, -4),HexCoord(-3, -4),HexCoord(-4, -4)},
+            /* 玩家2的目标区域 */
+            {HexCoord(-4, 8),HexCoord(-3, 7),HexCoord(-4, 7),HexCoord(-2, 6),HexCoord(-3, 6),HexCoord(-4, 6),
+            HexCoord(-1, 5),HexCoord(-2, 5),HexCoord(-3, 5),HexCoord(-4, 5)},
+            /* 玩家3的目标区域 */
+            {HexCoord(4, 1),HexCoord(3, 2),HexCoord(4, 2),HexCoord(2, 3),HexCoord(3, 3),HexCoord(4, 3),
+            HexCoord(1, 4),HexCoord(2, 4),HexCoord(3, 4),HexCoord(4, 4)},
+            /* 玩家4的目标区域 */
+            {HexCoord(-5, 1),HexCoord(-6, 2),HexCoord(-5, 2),HexCoord(-7, 3),HexCoord(-6, 3),HexCoord(-5, 3),
+            HexCoord(-8, 4),HexCoord(-7, 4),HexCoord(-6, 4),HexCoord(-5, 4)},
+            /* 玩家5的目标区域 */
+            {HexCoord(5, -1),HexCoord(6, -2),HexCoord(5, -2),HexCoord(7, -3),HexCoord(6, -3),HexCoord(5, -3),
+            HexCoord(8, -4),HexCoord(7, -4),HexCoord(6, -4),HexCoord(5, -4)}
+                 
+        }
     };
 
     int tidx = (playerCount == 2 ? 0 : playerCount == 4 ? 1 : 2);
