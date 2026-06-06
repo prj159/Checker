@@ -1,5 +1,9 @@
 # Change Log
 
+编译代码的方法
+
+& 'D:\VS\MSBuild\Current\Bin\MSBuild.exe' .\checker.sln /m /p:Configuration=Debug /p:Platform=x64
+
 记录每个日期所做的更改：
 
 ## 2025-10-07
@@ -26,3 +30,7 @@
 ## 2026-06-06
 - 修改6名玩家的胜利判定
 - 修改README.md文件
+
+## 2026-06-06a
+- 在该文件开头增加了每次可以编译代码的方法
+- 添加了ai的训练数据，这是测试50轮的
