@@ -35,6 +35,7 @@ private:
     bool aiMode;        // 新增
     bool humanFirst;    // 新增
     bool hasSelection;
+    bool exitRequested;
     HexCoord selectedHex;
     std::map<HexCoord, Player> boardState;
     std::vector<HexCoord> validMoves;

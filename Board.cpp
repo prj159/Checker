@@ -1,4 +1,4 @@
-#include "Board.h"
+﻿#include "Board.h"
 #include "AI_MCTS.h"          // ← 新增：AI 引擎
 #include <cmath>
 #include <vector>
@@ -13,7 +13,7 @@ Board::Board(int w, int h, int _playerCount, int _aiMode, bool _humanFirst)
     : windowWidth(w), windowHeight(h),
     playerCount(_playerCount),
     aiMode(_aiMode), humanFirst(_humanFirst),
-    currentPlayer(0), hasSelection(false), selectedHex(0, 0)
+    currentPlayer(0), hasSelection(false), exitRequested(false), selectedHex(0, 0)
 {
     originX = w / 2;
     originY = h / 2;
@@ -252,6 +252,12 @@ void Board::drawUI() {
     settextstyle(24, 0, _T("微软雅黑")); setbkmode(TRANSPARENT);
     std::wstring txt = L"Current: " + playerNames[currentPlayer];
     outtextxy(10, 10, txt.c_str());
+    // 退出按钮
+    int bx = windowWidth - 40, by = 5, bw = 35, bh = 30;
+    setfillcolor(RGB(200, 50, 50));
+    solidrectangle(bx, by, bx + bw, by + bh);
+    settextcolor(WHITE); settextstyle(20, 0, _T("Arial"));
+    outtextxy(bx + 10, by + 5, _T("x"));
     settextcolor(WHITE); settextstyle(16, 0, _T("Arial"));
     outtextxy(10, windowHeight - 30, _T("Right-click cancel,  'U' undo"));
 }
@@ -291,6 +297,10 @@ void Board::drawHexagonOutline(const HexCoord& hex) {
 
 void Board::handleMouseClick(const MOUSEMSG& msg) {
     POINT p = { msg.x,msg.y };
+    // 检查是否点击退出按钮
+    if (p.x >= windowWidth - 40 && p.x <= windowWidth - 5 && p.y >= 5 && p.y <= 35) {
+        exitRequested = true; return;
+    }
     HexCoord clicked = pixelToHex(p);
     if (boardState.find(clicked) == boardState.end()) {
         hasSelection = false; validMoves.clear(); return;
@@ -372,7 +382,7 @@ void Board::run() {
         // ====== 人类回合 ======
         if (MouseHit()) {
             MOUSEMSG msg = GetMouseMsg();
-            if (msg.uMsg == WM_LBUTTONDOWN) handleMouseClick(msg);
+            if (msg.uMsg == WM_LBUTTONDOWN) { handleMouseClick(msg); if (exitRequested) break; }
             else if (msg.uMsg == WM_RBUTTONDOWN) { hasSelection = false; validMoves.clear(); }
         }
         if (_kbhit()) {
