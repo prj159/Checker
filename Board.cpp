@@ -253,13 +253,13 @@ void Board::drawUI() {
     std::wstring txt = L"Current: " + playerNames[currentPlayer];
     outtextxy(10, 10, txt.c_str());
     // 退出按钮
-    int bx = windowWidth - 40, by = 5, bw = 35, bh = 30;
-    setfillcolor(RGB(200, 50, 50));
-    solidrectangle(bx, by, bx + bw, by + bh);
-    settextcolor(WHITE); settextstyle(20, 0, _T("Arial"));
-    outtextxy(bx + 10, by + 5, _T("x"));
-    settextcolor(WHITE); settextstyle(16, 0, _T("Arial"));
-    outtextxy(10, windowHeight - 30, _T("Right-click cancel,  'U' undo"));
+    int bx = windowWidth - 60, by = 5, bw = 55, bh = 30;
+    setlinecolor(WHITE); setlinestyle(PS_SOLID, 1);
+    rectangle(bx, by, bx + bw, by + bh); // 白色边框, 透明背景
+    settextcolor(WHITE); settextstyle(23, 0, _T("微软雅黑"));
+    outtextxy(bx + 10, by + 3, _T("退出"));
+    settextcolor(WHITE); settextstyle(20, 0, _T("微软雅黑"));
+    outtextxy(10, windowHeight - 30, _T("右键取消,  'U' 悔棋"));
 }
 
 void Board::switchPlayer() {
@@ -385,10 +385,20 @@ void Board::run() {
             if (msg.uMsg == WM_LBUTTONDOWN) { handleMouseClick(msg); if (exitRequested) break; }
             else if (msg.uMsg == WM_RBUTTONDOWN) { hasSelection = false; validMoves.clear(); }
         }
-        if (_kbhit()) {
-            char c = _getch(); if (c == 'u' || c == 'U') undoMove();
-        }
-    }
+        if (GetAsyncKeyState('U') & 0x8000) {
+            undoMove();
+            if (aiMode && currentPlayer != humanPlayer) {
+                undoMove();
+            }
+            
+            // 清空历史记录，确保最多只能返回一步
+            moveHistory.clear();
+
+            // 防抖：等待按键松开，避免一次按键触发多次悔棋
+            while (GetAsyncKeyState('U') & 0x8000) {
+                Sleep(10);
+            }
+        }    }
     EndBatchDraw();
 }
 

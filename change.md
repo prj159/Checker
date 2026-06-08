@@ -4,6 +4,10 @@
 
 & 'D:\VS\MSBuild\Current\Bin\MSBuild.exe' .\checker.sln /m /p:Configuration=Debug /p:Platform=x64
 
+运行方法
+
+./x64/Debug/checker.exe
+
 记录每个日期所做的更改：
 
 ## 2025-10-07
@@ -41,3 +45,8 @@
 ## 2026-06-07a
 - 增加退出按键
 - 增加了AGENTS.md，节约token
+
+## 2026-06-08
+- 完全汉化
+- 修改退出键样式
+- 修复按下u无法悔棋的问题（只能悔棋一步）
